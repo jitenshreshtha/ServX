@@ -36,7 +36,15 @@ function Header() {
           <NavLink href="/" label="Home" />
           <NavLink href="/about" label="About Us" />
           <NavLink href="/contact" label="Contact Us" />
-          <NavLink href="/login" label="Login/Signup" />
+          
+          {/* Dropdown for Login/Signup */}
+               <div className="dropdown">
+                 <a className="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false" style={{ color: 'black', textDecoration: 'none', fontWeight: '500' }}>Login/Signup </a>
+                  <ul className="dropdown-menu" aria-labelledby="dropdownMenuLink">
+                    <li><a className="dropdown-item" href="./Login"> Login</a></li>
+                    <li><a className="dropdown-item" href="./Signup">Signup</a></li>
+                  </ul>
+                </div>
         </div>
       </nav>
     </header>
