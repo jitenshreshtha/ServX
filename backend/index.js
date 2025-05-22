@@ -6,9 +6,11 @@ require('dotenv').config();
 const app = express();
 
 
+app.use(express.json());
+
 mongoose.connect(process.env.MONGODB_URI)
 .then(()=> console.log('DB connected'))
-.catch(err => console.err(err));
+.catch(err => console.error(err));
 
 app.get('/',(req,res)=>{
     console.log('Server is working');
