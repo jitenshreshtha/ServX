@@ -3,7 +3,9 @@ const bcrypt = require("bcrypt");
 
 const userSchema = new mongoose.Schema({
   email: String,
-  passowrd: String,
+  password: String,
   role: String,
-  createdat: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now },
 });
+
+module.exports = mongoose.model("User", userSchema);

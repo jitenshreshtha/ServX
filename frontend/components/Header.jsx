@@ -1,4 +1,5 @@
 import React from 'react';
+import {Link} from 'react-router-dom';
 
 function Header() {
   return (
@@ -41,8 +42,8 @@ function Header() {
                <div className="dropdown">
                  <a className="dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-expanded="false" style={{ color: 'black', textDecoration: 'none', fontWeight: '500' }}>Login/Signup </a>
                   <ul className="dropdown-menu" aria-labelledby="dropdownMenuLink">
-                    <li><a className="dropdown-item" href="./Login"> Login</a></li>
-                    <li><a className="dropdown-item" href="./Signup">Signup</a></li>
+                    <li><Link className="dropdown-item" to="/login">Login</Link></li>
+                    <li><Link className="dropdown-item" to="/signup">Signup</Link></li>
                   </ul>
                 </div>
         </div>

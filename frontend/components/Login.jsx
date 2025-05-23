@@ -1,6 +1,4 @@
 import React,{useState} from 'react'
-import Header from './Header';
-import Footer from './Footer';
 
 function Login() {
     const [formData,setFormData] = useState({
@@ -12,7 +10,6 @@ function Login() {
     }
   return (
     <div>
-        <Header />
         <form onSubmit={handleSubmit}>
             <div>
                 <label>Email</label>
@@ -24,7 +21,6 @@ function Login() {
             </div>
             <button type='submit'>Submit</button>
         </form>
-        <Footer />
     </div>
   )
 }
