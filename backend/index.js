@@ -1,62 +1,71 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-require('dotenv').config();
+const cors = require('cors');
 const bcrypt = require('bcrypt');
 const User = require('./models/User');
-const cors = require('cors');
-
 
 const app = express();
 
-
 app.use(express.json());
+app.use(cors({ origin: 'http://localhost:5173' }));
 
 mongoose.connect(process.env.MONGODB_URI)
-.then(()=> console.log('DB connected'))
-.catch(err => console.error(err));
+  .then(() => console.log(' DB connected'))
+  .catch(err => console.error(' DB error:', err));
 
-
-app.use(cors({
-    origin: 'http://localhost:5173'
-}));
-app.get('/',(req,res)=>{
-    console.log('Server is working');
-    res.send("HomePage");
+app.get('/', (req, res) => {
+  console.log(' GET / called');
+  res.send("HomePage");
 });
-app.post('/signup', async (req,res)=>{
-    try {
-        const {email,password} = req.body;
-        
-        // Check if user exists
-        const existingUser = await User.findOne({ email });
-        if(existingUser) {
-            return res.status(400).json({ error: "Email already exists" });
-        }
 
-        const hashPassword = await bcrypt.hash(password,10);
-        const user = new User({email,password:hashPassword});
-        await user.save();
-        
-        // Send success response
-        res.status(201).json({ message: "Signup successful!" });
-        
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Server error" });
-    }
-})
+app.post('/signup', async (req, res) => {
+    console.log('POST /signup called with:', req.body);
+  try {
+    const { email, password } = req.body;
 
-app.post('/login',async (req,res)=>{
-    const {email,password} =req.body;
-    const user = await User.findOne({email});
-    if(!user || !(await bcrypt.compare(password,user.password))){
-        console.log('invalid id and pw');
-        return;
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already exists" });
     }
 
-})
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ email, password: hashedPassword });
+    await user.save();
+
+    //  Log user data
+    console.log('New user registered:', {
+      id: user._id,
+      email: user.email,
+    });
+
+    res.status(201).json({ message: "Signup successful!" });
+
+  } catch (error) {
+    console.error(' Signup error:', error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return res.status(400).json({ error: "Invalid email or password" });
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(400).json({ error: "Invalid email or password" });
+  }
+
+  console.log(`User ${user.email} is logged in successfully`); 
+
+  res.json({ message: "Login successful", user: { email: user.email, id: user._id } });
+});
 
 
-app.listen(process.env.BACK_PORT,()=>{
-    console.log('Server running ');
-})
+app.listen(process.env.BACK_PORT, () => {
+  console.log(` Server running on http://localhost:${process.env.BACK_PORT}`);
+});
