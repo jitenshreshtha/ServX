@@ -1,26 +1,28 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const bcrypt = require('bcrypt');
-const User = require('./models/User');
+require("dotenv").config();
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const bcrypt = require("bcrypt");
+const User = require("./models/User");
+const Post = require("./models/createPost");
 
 const app = express();
 
 app.use(express.json());
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ origin: "http://localhost:5173" }));
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log(' DB connected'))
-  .catch(err => console.error(' DB error:', err));
+mongoose
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log(" DB connected"))
+  .catch((err) => console.error(" DB error:", err));
 
-app.get('/', (req, res) => {
-  console.log(' GET / called');
+app.get("/", (req, res) => {
+  console.log(" GET / called");
   res.send("HomePage");
 });
 
-app.post('/signup', async (req, res) => {
-    console.log('POST /signup called with:', req.body);
+app.post("/signup", async (req, res) => {
+  console.log("POST /signup called with:", req.body);
   try {
     const { email, password } = req.body;
 
@@ -34,20 +36,19 @@ app.post('/signup', async (req, res) => {
     await user.save();
 
     //  Log user data
-    console.log('New user registered:', {
+    console.log("New user registered:", {
       id: user._id,
       email: user.email,
     });
 
     res.status(201).json({ message: "Signup successful!" });
-
   } catch (error) {
-    console.error(' Signup error:', error);
+    console.error(" Signup error:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-app.post('/login', async (req, res) => {
+app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
 
@@ -60,11 +61,26 @@ app.post('/login', async (req, res) => {
     return res.status(400).json({ error: "Invalid email or password" });
   }
 
-  console.log(`User ${user.email} is logged in successfully`); 
+  console.log(`User ${user.email} is logged in successfully`);
 
-  res.json({ message: "Login successful", user: { email: user.email, id: user._id } });
+  res.json({
+    message: "Login successful",
+    user: { email: user.email, id: user._id },
+  });
 });
 
+app.post("/posts", async (req, res) => {
+  const { title, description, offeredSkill, wantedSkill, category } = req.body;
+  const post = new Post({
+    title,
+    description,
+    offeredSkill,
+    wantedSkill,
+    category,
+    author: 'GX'
+  });
+  await post.save();
+});
 
 app.listen(process.env.BACK_PORT, () => {
   console.log(` Server running on http://localhost:${process.env.BACK_PORT}`);

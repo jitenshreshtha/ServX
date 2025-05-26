@@ -105,6 +105,7 @@ function Header() {
           <NavLink href="/" label="Home" />
           <NavLink href="/about" label="About Us" />
           <NavLink href="/contact" label="Contact Us" />
+          <NavLink href='/create-post' label='Create Post'/>
         </div>
       </nav>
     </header>
