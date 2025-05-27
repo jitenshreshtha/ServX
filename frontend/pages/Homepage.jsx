@@ -13,7 +13,7 @@ function Homepage() {
       setPosts(data);
     };
     fetchPosts();
-  });
+  },[]);
   return (
     <div>
       <Header />

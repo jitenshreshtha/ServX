@@ -28,7 +28,7 @@ app.post("/signup", async (req, res) => {
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ error: "Email already exists" });
+      console.log('Email already exists');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -41,10 +41,9 @@ app.post("/signup", async (req, res) => {
       email: user.email,
     });
 
-    res.status(201).json({ message: "Signup successful!" });
+    console.log('Signup successfull')
   } catch (error) {
     console.error(" Signup error:", error);
-    res.status(500).json({ error: "Server error" });
   }
 });
 
@@ -53,20 +52,15 @@ app.post("/login", async (req, res) => {
   const user = await User.findOne({ email });
 
   if (!user) {
-    return res.status(400).json({ error: "Invalid email or password" });
+    console.log('User not found')
   }
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) {
-    return res.status(400).json({ error: "Invalid email or password" });
+    console.log('Invalid password')
   }
 
-  console.log(`User ${user.email} is logged in successfully`);
-
-  res.json({
-    message: "Login successful",
-    user: { email: user.email, id: user._id },
-  });
+  console.log(`User logged in successfully`);
 });
 
 app.post("/posts", async (req, res) => {
