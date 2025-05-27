@@ -77,9 +77,14 @@ app.post("/posts", async (req, res) => {
     offeredSkill,
     wantedSkill,
     category,
-    author: 'GX'
+    author: "GX",
   });
   await post.save();
+});
+
+app.get("/posts", async (req, res) => {
+  const posts = await Post.find().sort({ createdAt: -1 });
+  res.json(posts);
 });
 
 app.listen(process.env.BACK_PORT, () => {

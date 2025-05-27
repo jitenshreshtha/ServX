@@ -1,9 +1,19 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import 'bootstrap/dist/css/bootstrap.min.css';
+import "bootstrap/dist/css/bootstrap.min.css";
 
 function Homepage() {
+  const [posts, setPosts] = useState([]);
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      const response = await fetch("http://localhost:5000/posts");
+      const data = await response.json();
+      setPosts(data);
+    };
+    fetchPosts();
+  });
   return (
     <div>
       <Header />
@@ -32,17 +42,12 @@ function Homepage() {
       <div className="container mb-5">
         <h3 className="text-center mb-4">Recent Posts</h3>
         <div className="row">
-          {[1, 2, 3, 4].map((item) => (
-            <div className="col-md-6 mb-4" key={item}>
+          {posts.map((post) => (
+            <div className="col-md-6 mb-4" key={post._id}>
               <div className="card">
                 <div className="card-body">
-                  <h5 className="card-title">Post Title {item}</h5>
-                  <p className="card-text">
-                    Lorem, ipsum dolor sit amet consectetur adipisicing elit.
-                    Ratione sapiente similique explicabo itaque, nam
-                    voluptatibus sit quasi earum illo numquam dolores deserunt
-                    neque quod quia, placeat excepturi a tenetur labore!
-                  </p>
+                  <h5 className="card-title"> {post.title}</h5>
+                  <p className="card-text">{post.description}</p>
                 </div>
               </div>
             </div>
