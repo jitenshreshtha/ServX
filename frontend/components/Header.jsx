@@ -40,7 +40,19 @@ function Header() {
     localStorage.removeItem('isLoggedIn');
     setLoggedIn(false);
     setUser(null);
+    
+    // Trigger login state change event
+    window.dispatchEvent(new Event('loginStateChange'));
+    
     navigate('/');
+  };
+
+  const handleCreateListingClick = (e) => {
+    if (!loggedIn) {
+      e.preventDefault();
+      alert('Please login first to create a listing!');
+      navigate('/login');
+    }
   };
 
   return (
@@ -137,7 +149,26 @@ function Header() {
           <NavLink to="/" label="Home" />
           <NavLink to="/about" label="About Us" />
           <NavLink to="/contact" label="Contact Us" />
-          {loggedIn && <NavLink to="/create-listing" label="Create Listing" />}
+          
+          {/* Create Listing - Only show for logged-in users */}
+          {loggedIn ? (
+            <NavLink to="/create-listing" label="Create Listing" />
+          ) : (
+            <a
+              href="#"
+              onClick={handleCreateListingClick}
+              style={{
+                color: 'black',
+                textDecoration: 'none',
+                fontWeight: '500',
+                transition: 'color 0.3s ease',
+              }}
+              onMouseEnter={(e) => (e.target.style.color = '#0866C4')}
+              onMouseLeave={(e) => (e.target.style.color = 'black')}
+            >
+              Create Listing
+            </a>
+          )}
         </div>
       </nav>
     </header>

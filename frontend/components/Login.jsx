@@ -1,11 +1,15 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 
 function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get the page user tried to access before login
+  const from = location.state?.from?.pathname || '/';
 
   const validateForm = () => {
     const newErrors = {};
@@ -46,7 +50,8 @@ function Login() {
       // Trigger header update
       window.dispatchEvent(new Event('loginStateChange'));
       
-      navigate("/");
+      // Redirect to original page or home
+      navigate(from, { replace: true });
 
     } catch (err) {
       console.error("Login error:", err);
@@ -70,6 +75,15 @@ function Login() {
       <div className="card shadow">
         <div className="card-body p-4">
           <h2 className="mb-4 text-center">Login</h2>
+          
+          {/* Show message if redirected from protected route */}
+          {location.state?.from && (
+            <div className="alert alert-info" role="alert">
+              <i className="bi bi-info-circle me-2"></i>
+              Please login to access the requested page.
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit}>
             <div className="mb-3">
               <label htmlFor="email" className="form-label">Email Address</label>
@@ -111,6 +125,14 @@ function Login() {
           <div className="text-center mt-3">
             <span>Don't have an account? </span>
             <Link to="/signup" className="text-decoration-none">Sign up here</Link>
+          </div>
+          
+          {/* Quick demo login (optional - remove in production) */}
+          <div className="text-center mt-3">
+            <hr />
+            <small className="text-muted">
+              Quick Demo: Use any email and password to test (for development)
+            </small>
           </div>
         </div>
       </div>

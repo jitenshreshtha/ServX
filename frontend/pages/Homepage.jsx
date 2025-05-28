@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 function Homepage() {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
   const [filters, setFilters] = useState({
     category: "",
     search: "",
     skillOffered: "",
     skillWanted: ""
   });
+  const navigate = useNavigate();
 
   const categories = [
     "Web Development",
@@ -31,7 +33,24 @@ function Homepage() {
 
   useEffect(() => {
     fetchListings();
+    checkLoginStatus();
+    
+    // Listen for login state changes
+    const handleLoginStateChange = () => {
+      checkLoginStatus();
+    };
+    
+    window.addEventListener('loginStateChange', handleLoginStateChange);
+    
+    return () => {
+      window.removeEventListener('loginStateChange', handleLoginStateChange);
+    };
   }, [filters]);
+
+  const checkLoginStatus = () => {
+    const token = localStorage.getItem('token');
+    setLoggedIn(!!token);
+  };
 
   const fetchListings = async () => {
     setLoading(true);
@@ -68,6 +87,15 @@ function Homepage() {
     });
   };
 
+  const handleCreateListingClick = () => {
+    if (!loggedIn) {
+      alert('Please login first to create a listing!');
+      navigate('/login');
+    } else {
+      navigate('/create-listing');
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -85,9 +113,25 @@ function Homepage() {
         <div className="container text-center">
           <h1 className="display-4 fw-bold mb-3">Welcome to ServX</h1>
           <p className="lead mb-4">Exchange skills, share knowledge, and build your community</p>
-          <Link to="/create-listing" className="btn btn-light btn-lg">
-            <i className="bi bi-plus-circle me-2"></i>Create Your First Listing
-          </Link>
+          
+          {/* Protected Create Listing Button */}
+          <button 
+            className="btn btn-light btn-lg"
+            onClick={handleCreateListingClick}
+          >
+            <i className="bi bi-plus-circle me-2"></i>
+            {loggedIn ? 'Create Your Listing' : 'Login to Create Listing'}
+          </button>
+          
+          {!loggedIn && (
+            <div className="mt-3">
+              <small className="text-light">
+                <Link to="/signup" className="text-light text-decoration-underline">
+                  New user? Sign up here
+                </Link>
+              </small>
+            </div>
+          )}
         </div>
       </div>
 
@@ -156,7 +200,17 @@ function Homepage() {
       <div className="container mb-5">
         <div className="d-flex justify-content-between align-items-center mb-4">
           <h3>Recent Listings</h3>
-          <span className="text-muted">{listings.length} listings found</span>
+          <div className="d-flex align-items-center gap-3">
+            <span className="text-muted">{listings.length} listings found</span>
+            {loggedIn && (
+              <button 
+                className="btn btn-primary btn-sm"
+                onClick={() => navigate('/create-listing')}
+              >
+                <i className="bi bi-plus me-1"></i>New Listing
+              </button>
+            )}
+          </div>
         </div>
         
         {loading ? (
@@ -169,10 +223,18 @@ function Homepage() {
           <div className="text-center py-5">
             <i className="bi bi-search display-1 text-muted"></i>
             <h4 className="mt-3">No listings found</h4>
-            <p className="text-muted">Try adjusting your search criteria or create a new listing</p>
-            <Link to="/create-listing" className="btn btn-primary">
-              Create Listing
-            </Link>
+            <p className="text-muted">
+              {loggedIn 
+                ? "Try adjusting your search criteria or create a new listing" 
+                : "Try adjusting your search criteria or login to create a listing"
+              }
+            </p>
+            <button 
+              className="btn btn-primary"
+              onClick={handleCreateListingClick}
+            >
+              {loggedIn ? 'Create Listing' : 'Login to Create Listing'}
+            </button>
           </div>
         ) : (
           <div className="row">
@@ -245,9 +307,21 @@ function Homepage() {
                   </div>
                   
                   <div className="card-footer bg-transparent">
-                    <button className="btn btn-primary btn-sm w-100">
-                      <i className="bi bi-chat-dots me-2"></i>Contact
-                    </button>
+                    {loggedIn ? (
+                      <button className="btn btn-primary btn-sm w-100">
+                        <i className="bi bi-chat-dots me-2"></i>Contact
+                      </button>
+                    ) : (
+                      <button 
+                        className="btn btn-outline-primary btn-sm w-100"
+                        onClick={() => {
+                          alert('Please login to contact the author!');
+                          navigate('/login');
+                        }}
+                      >
+                        <i className="bi bi-box-arrow-in-right me-2"></i>Login to Contact
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

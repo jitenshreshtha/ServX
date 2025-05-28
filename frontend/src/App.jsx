@@ -3,6 +3,7 @@ import HomePage from '../pages/Homepage';
 import LoginPage from '../pages/LoginPage';
 import SignupPage from '../pages/SignupPage'; 
 import CreateListing from '../pages/CreateListing';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 function App() {
   return (
@@ -11,9 +12,26 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
-        <Route path="/create-listing" element={<CreateListing />} />
+        
+        {/* Protected Routes - Require Authentication */}
+        <Route 
+          path="/create-listing" 
+          element={
+            <ProtectedRoute>
+              <CreateListing />
+            </ProtectedRoute>
+          } 
+        />
+        
         {/* Legacy route for backward compatibility */}
-        <Route path="/create-post" element={<CreateListing />} />
+        <Route 
+          path="/create-post" 
+          element={
+            <ProtectedRoute>
+              <CreateListing />
+            </ProtectedRoute>
+          } 
+        />
       </Routes>
     </Router>
   );
