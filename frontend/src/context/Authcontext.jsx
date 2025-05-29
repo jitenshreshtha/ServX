@@ -15,8 +15,14 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData) => {
-    localStorage.setItem("user", JSON.stringify(userData));
-    setCurrentUser(userData);
+    // Ensure consistent ID naming
+    const userWithConsistentId = {
+      ...userData,
+      id: userData.id, // Keep as 'id'
+      _id: userData.id // Also add '_id' for compatibility
+    };
+    localStorage.setItem("user", JSON.stringify(userWithConsistentId));
+    setCurrentUser(userWithConsistentId);
   };
 
   const logout = () => {

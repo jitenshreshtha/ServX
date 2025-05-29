@@ -286,6 +286,45 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
   }
 });
 
+app.get("/messages", authenticateToken, async (req, res) => {
+  try {
+    const { conversationId } = req.query;
+    const messages = await Message.find({ conversation: conversationId })
+      .sort({ createdAt: 1 })
+      .populate('sender', 'name');
+    
+    res.json({ messages });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch messages" });
+  }
+});
+
+// Add this to your routes section
+app.get("/conversations", authenticateToken, async (req, res) => {
+  try {
+    const { user1, user2, listing } = req.query;
+    
+    // Find existing conversation
+    let conversation = await Conversation.findOne({
+      participants: { $all: [user1, user2], $size: 2 },
+      listing
+    });
+
+    // Create if doesn't exist
+    if (!conversation) {
+      conversation = new Conversation({
+        participants: [user1, user2],
+        listing
+      });
+      await conversation.save();
+    }
+
+    res.json({ conversation });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch conversation" });
+  }
+});
+
 // Apply error handling middleware
 app.use(errorHandler);
 

@@ -116,18 +116,16 @@ function Homepage() {
   };
 
   // Updated handleContactClick function
+// Updated handleContactClick function
 const handleContactClick = (listing) => {
-  // Check if we have a valid user object with id
+  // Use currentUser.id instead of currentUser._id
   if (!currentUser || !currentUser.id) {
     alert("Please login to start a chat");
     return;
   }
 
-  if (currentUser.id === listing.author._id) {
-    alert("You can't contact yourself!");
-    return;
-  }
 
+  
   setSelectedRecipient({
     id: listing.author._id,
     name: listing.author.name,
