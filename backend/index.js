@@ -4,6 +4,9 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 
+//chat module
+const setupSocketIO = require("./controllers/chatController");
+
 // Import models
 const User = require("./models/User");
 const Listing = require("./models/Listing");
@@ -11,6 +14,7 @@ const Project = require("./models/Project");
 const { Message, Conversation } = require("./models/Message");
 
 const app = express();
+const server = require("http").createServer(app);
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -66,6 +70,9 @@ const errorHandler = (err, req, res, next) => {
   res.status(500).json({ error: "Internal server error" });
 };
 
+
+
+setupSocketIO(server);
 // Routes
 
 // Health check
@@ -287,7 +294,9 @@ app.use('*', (req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
+
+
 const PORT = process.env.BACK_PORT || 3000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

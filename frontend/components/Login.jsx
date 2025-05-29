@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useAuth } from "../src/context/Authcontext";
 import { useNavigate, Link } from "react-router-dom";
 
 function Login() {
@@ -6,22 +7,31 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+  const { login } = useAuth();
 
+  const handleLogin = async () => {
+    // After successful login:
+    login({
+      id: userData.id,
+      name: userData.name,
+      email: userData.email,
+    });
+  };
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.email.trim()) newErrors.email = "Email is required";
     if (!formData.password.trim()) newErrors.password = "Password is required";
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     setLoading(true);
     try {
       const response = await fetch("http://localhost:3000/login", {
@@ -42,12 +52,12 @@ function Login() {
       localStorage.setItem("isLoggedIn", "true");
 
       alert("Login successful!");
-      
-      // Trigger header update
-      window.dispatchEvent(new Event('loginStateChange'));
-      
-      navigate("/");
 
+      handleLogin();
+      // Trigger header update
+      window.dispatchEvent(new Event("loginStateChange"));
+
+      navigate("/");
     } catch (err) {
       console.error("Login error:", err);
       alert("Login failed: " + err.message);
@@ -58,10 +68,10 @@ function Login() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
@@ -72,45 +82,57 @@ function Login() {
           <h2 className="mb-4 text-center">Login</h2>
           <form onSubmit={handleSubmit}>
             <div className="mb-3">
-              <label htmlFor="email" className="form-label">Email Address</label>
+              <label htmlFor="email" className="form-label">
+                Email Address
+              </label>
               <input
                 id="email"
                 name="email"
                 type="email"
-                className={`form-control ${errors.email ? 'is-invalid' : ''}`}
+                className={`form-control ${errors.email ? "is-invalid" : ""}`}
                 value={formData.email}
                 onChange={handleChange}
                 required
               />
-              {errors.email && <div className="invalid-feedback">{errors.email}</div>}
+              {errors.email && (
+                <div className="invalid-feedback">{errors.email}</div>
+              )}
             </div>
 
             <div className="mb-3">
-              <label htmlFor="password" className="form-label">Password</label>
+              <label htmlFor="password" className="form-label">
+                Password
+              </label>
               <input
                 id="password"
                 name="password"
                 type="password"
-                className={`form-control ${errors.password ? 'is-invalid' : ''}`}
+                className={`form-control ${
+                  errors.password ? "is-invalid" : ""
+                }`}
                 value={formData.password}
                 onChange={handleChange}
                 required
               />
-              {errors.password && <div className="invalid-feedback">{errors.password}</div>}
+              {errors.password && (
+                <div className="invalid-feedback">{errors.password}</div>
+              )}
             </div>
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn btn-primary w-100"
               disabled={loading}
             >
               {loading ? "Logging in..." : "Login"}
             </button>
           </form>
-          
+
           <div className="text-center mt-3">
             <span>Don't have an account? </span>
-            <Link to="/signup" className="text-decoration-none">Sign up here</Link>
+            <Link to="/signup" className="text-decoration-none">
+              Sign up here
+            </Link>
           </div>
         </div>
       </div>
