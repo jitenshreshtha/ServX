@@ -1,13 +1,24 @@
 import React, { useState } from "react";
+<<<<<<< HEAD
 import { useAuth } from "../src/context/Authcontext";
 import { useNavigate, Link } from "react-router-dom";
+=======
+import { useNavigate, Link, useLocation } from "react-router-dom";
+>>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
 
 function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+<<<<<<< HEAD
   const { login } = useAuth();
+=======
+  const location = useLocation();
+
+  // Get the page user tried to access before login
+  const from = location.state?.from?.pathname || '/';
+>>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
 
   const handleLogin = async () => {
     // After successful login:
@@ -52,6 +63,15 @@ function Login() {
       localStorage.setItem("isLoggedIn", "true");
 
       alert("Login successful!");
+<<<<<<< HEAD
+=======
+      
+      // Trigger header update
+      window.dispatchEvent(new Event('loginStateChange'));
+      
+      // Redirect to original page or home
+      navigate(from, { replace: true });
+>>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
 
       handleLogin();
       // Trigger header update
@@ -80,6 +100,15 @@ function Login() {
       <div className="card shadow">
         <div className="card-body p-4">
           <h2 className="mb-4 text-center">Login</h2>
+          
+          {/* Show message if redirected from protected route */}
+          {location.state?.from && (
+            <div className="alert alert-info" role="alert">
+              <i className="bi bi-info-circle me-2"></i>
+              Please login to access the requested page.
+            </div>
+          )}
+          
           <form onSubmit={handleSubmit}>
             <div className="mb-3">
               <label htmlFor="email" className="form-label">
@@ -133,6 +162,14 @@ function Login() {
             <Link to="/signup" className="text-decoration-none">
               Sign up here
             </Link>
+          </div>
+          
+          {/* Quick demo login (optional - remove in production) */}
+          <div className="text-center mt-3">
+            <hr />
+            <small className="text-muted">
+              Quick Demo: Use any email and password to test (for development)
+            </small>
           </div>
         </div>
       </div>
