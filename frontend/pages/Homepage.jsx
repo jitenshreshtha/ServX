@@ -16,16 +16,12 @@ function Homepage() {
     skillOffered: "",
     skillWanted: "",
   });
-<<<<<<< HEAD
   const { currentUser } = useAuth();
 
   // Chat modal state
   const [showChat, setShowChat] = useState(false);
   const [selectedRecipient, setSelectedRecipient] = useState(null);
   const [selectedListing, setSelectedListing] = useState(null);
-=======
-  const navigate = useNavigate();
->>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
 
   const categories = [
     "Web Development",
@@ -153,35 +149,12 @@ const handleContactClick = (listing) => {
       <div className="bg-primary text-white py-5">
         <div className="container text-center">
           <h1 className="display-4 fw-bold mb-3">Welcome to ServX</h1>
-<<<<<<< HEAD
           <p className="lead mb-4">
             Exchange skills, share knowledge, and build your community
           </p>
           <Link to="/create-listing" className="btn btn-light btn-lg">
             <i className="bi bi-plus-circle me-2"></i>Create Your First Listing
           </Link>
-=======
-          <p className="lead mb-4">Exchange skills, share knowledge, and build your community</p>
-          
-          {/* Protected Create Listing Button */}
-          <button 
-            className="btn btn-light btn-lg"
-            onClick={handleCreateListingClick}
-          >
-            <i className="bi bi-plus-circle me-2"></i>
-            {loggedIn ? 'Create Your Listing' : 'Login to Create Listing'}
-          </button>
-          
-          {!loggedIn && (
-            <div className="mt-3">
-              <small className="text-light">
-                <Link to="/signup" className="text-light text-decoration-underline">
-                  New user? Sign up here
-                </Link>
-              </small>
-            </div>
-          )}
->>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
         </div>
       </div>
 
@@ -282,25 +255,11 @@ const handleContactClick = (listing) => {
             <i className="bi bi-search display-1 text-muted"></i>
             <h4 className="mt-3">No listings found</h4>
             <p className="text-muted">
-<<<<<<< HEAD
               Try adjusting your search criteria or create a new listing
             </p>
             <Link to="/create-listing" className="btn btn-primary">
               Create Listing
             </Link>
-=======
-              {loggedIn 
-                ? "Try adjusting your search criteria or create a new listing" 
-                : "Try adjusting your search criteria or login to create a listing"
-              }
-            </p>
-            <button 
-              className="btn btn-primary"
-              onClick={handleCreateListingClick}
-            >
-              {loggedIn ? 'Create Listing' : 'Login to Create Listing'}
-            </button>
->>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
           </div>
         ) : (
           <div className="row">
@@ -394,30 +353,12 @@ const handleContactClick = (listing) => {
                   </div>
 
                   <div className="card-footer bg-transparent">
-<<<<<<< HEAD
                     <button
                       className="btn btn-primary btn-sm w-100"
                       onClick={() => handleContactClick(listing)}
                     >
                       <i className="bi bi-chat-dots me-2"></i>Contact
                     </button>
-=======
-                    {loggedIn ? (
-                      <button className="btn btn-primary btn-sm w-100">
-                        <i className="bi bi-chat-dots me-2"></i>Contact
-                      </button>
-                    ) : (
-                      <button 
-                        className="btn btn-outline-primary btn-sm w-100"
-                        onClick={() => {
-                          alert('Please login to contact the author!');
-                          navigate('/login');
-                        }}
-                      >
-                        <i className="bi bi-box-arrow-in-right me-2"></i>Login to Contact
-                      </button>
-                    )}
->>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
                   </div>
                 </div>
               </div>

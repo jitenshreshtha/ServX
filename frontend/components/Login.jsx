@@ -1,24 +1,17 @@
 import React, { useState } from "react";
-<<<<<<< HEAD
 import { useAuth } from "../src/context/Authcontext";
-import { useNavigate, Link } from "react-router-dom";
-=======
 import { useNavigate, Link, useLocation } from "react-router-dom";
->>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
 
 function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
-<<<<<<< HEAD
   const { login } = useAuth();
-=======
   const location = useLocation();
 
   // Get the page user tried to access before login
   const from = location.state?.from?.pathname || '/';
->>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
 
   const handleLogin = async () => {
     // After successful login:
@@ -63,15 +56,12 @@ function Login() {
       localStorage.setItem("isLoggedIn", "true");
 
       alert("Login successful!");
-<<<<<<< HEAD
-=======
       
       // Trigger header update
       window.dispatchEvent(new Event('loginStateChange'));
       
       // Redirect to original page or home
       navigate(from, { replace: true });
->>>>>>> 32f1c548629b79edbeaf1e81a9faa137da66b696
 
       handleLogin();
       // Trigger header update
