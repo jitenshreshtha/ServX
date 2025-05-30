@@ -8,6 +8,8 @@ import { AuthProvider } from "./context/Authcontext";
 import AdminLoginPage from "../pages/AdminLoginPage";
 import AdminDashboardPage from "../pages/AdminDashboardPage";
 import ProtectedRoute from '../components/ProtectedRoute';
+import AboutUsPage from '../pages/AboutUsPage';
+import ContactUsPage from '../pages/ContactUsPage';
 function App() {
   return (
     <AuthProvider>
@@ -22,6 +24,8 @@ function App() {
           {/* Legacy route for backward compatibility */}
           <Route path="/create-post" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/about" element={<AboutUsPage />} />
+        <Route path="/contact" element={<ContactUsPage />} />
         </Routes>
       </Router>
     </AuthProvider>

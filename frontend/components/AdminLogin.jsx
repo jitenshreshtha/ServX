@@ -88,12 +88,6 @@ const AdminLogin = () => {
           </button>
         </>
       )}
-
-      {token && (
-        <p style={{ color: "green", marginTop: "10px" }}>
-          ✅ Admin logged in successfully
-        </p>
-      )}
     </div>
   );
 };
