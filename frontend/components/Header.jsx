@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 function Header() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -22,24 +23,41 @@ function Header() {
   }, []);
 
   const checkLoginStatus = () => {
-    const token = localStorage.getItem('token');
+    const adminToken = localStorage.getItem('adminToken');
+    const userToken = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     
-    if (token && userData) {
+    // Check admin status first
+    if (adminToken) {
+      setLoggedIn(true);
+      setIsAdmin(true);
+      setUser({ name: 'Admin' }); // Default admin name
+      return;
+    }
+    
+    // Check regular user status
+    if (userToken && userData) {
       setLoggedIn(true);
       setUser(JSON.parse(userData));
+      setIsAdmin(false);
     } else {
       setLoggedIn(false);
       setUser(null);
+      setIsAdmin(false);
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    if (isAdmin) {
+      localStorage.removeItem('adminToken');
+    } else {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
     localStorage.removeItem('isLoggedIn');
     setLoggedIn(false);
     setUser(null);
+    setIsAdmin(false);
     
     // Trigger login state change event
     window.dispatchEvent(new Event('loginStateChange'));
@@ -72,7 +90,7 @@ function Header() {
 
         {/* Profile / Login Links */}
         <div className="me-3">
-          {loggedIn ? (
+          {(loggedIn || isAdmin) ? (
             <div className="dropdown">
               <button
                 className="dropdown-toggle d-flex align-items-center p-0 bg-transparent border-0"
@@ -91,20 +109,37 @@ function Header() {
                   className="rounded-circle me-2"
                   style={{ width: '40px', height: '40px', objectFit: 'cover' }}
                 />
-                <span>{user?.name || 'User'}</span>
+                <span>{isAdmin ? 'Admin' : user?.name || 'User'}</span>
               </button>
 
               <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
-                <li>
-                  <Link className="dropdown-item" to="/profile">
-                    <i className="bi bi-person me-2"></i>Profile
-                  </Link>
-                </li>
-                <li>
-                  <Link className="dropdown-item" to="/my-listings">
-                    <i className="bi bi-list-ul me-2"></i>My Listings
-                  </Link>
-                </li>
+                {isAdmin ? (
+                  <>
+                    <li>
+                      <Link className="dropdown-item" to="/admin-dashboard">
+                        <i className="bi bi-speedometer2 me-2"></i>Dashboard
+                      </Link>
+                    </li>
+                    <li>
+                      <Link className="dropdown-item" to="/admin/settings">
+                        <i className="bi bi-gear me-2"></i>Settings
+                      </Link>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li>
+                      <Link className="dropdown-item" to="/profile">
+                        <i className="bi bi-person me-2"></i>Profile
+                      </Link>
+                    </li>
+                    <li>
+                      <Link className="dropdown-item" to="/my-listings">
+                        <i className="bi bi-list-ul me-2"></i>My Listings
+                      </Link>
+                    </li>
+                  </>
+                )}
                 <li><hr className="dropdown-divider" /></li>
                 <li>
                   <button className="dropdown-item" onClick={handleLogout}>
@@ -137,6 +172,11 @@ function Header() {
                     <i className="bi bi-person-plus me-2"></i>Signup
                   </Link>
                 </li>
+                <li>
+                  <Link className="dropdown-item" to="/admin-login">
+                    <i className="bi bi-shield-lock me-2"></i>Admin Login
+                  </Link>
+                </li>
               </ul>
             </div>
           )}
@@ -150,10 +190,10 @@ function Header() {
           <NavLink to="/about" label="About Us" />
           <NavLink to="/contact" label="Contact Us" />
           
-          {/* Create Listing - Only show for logged-in users */}
-          {loggedIn ? (
+          {/* Show Create Listing only for regular logged-in users */}
+          {loggedIn && !isAdmin ? (
             <NavLink to="/create-listing" label="Create Listing" />
-          ) : (
+          ) : !loggedIn ? (
             <a
               href="#"
               onClick={handleCreateListingClick}
@@ -168,7 +208,7 @@ function Header() {
             >
               Create Listing
             </a>
-          )}
+          ) : null}
         </div>
       </nav>
     </header>

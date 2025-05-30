@@ -12,7 +12,8 @@ const User = require("./models/User");
 const Listing = require("./models/Listing");
 const Project = require("./models/Project");
 const { Message, Conversation } = require("./models/Message");
-
+const Otp = require("./models/Otp");
+const sendOTPEmail = require("./utils/sendEmail");
 const app = express();
 const server = require("http").createServer(app);
 
@@ -29,8 +30,8 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => console.log("✅ Database connected successfully"))
-  .catch((err) => console.error("❌ Database connection error:", err));
+  .then(() => console.log(" Database connected successfully"))
+  .catch((err) => console.error(" Database connection error:", err));
 
 // JWT Authentication middleware
 const authenticateToken = (req, res, next) => {
@@ -166,6 +167,89 @@ app.post("/login", async (req, res, next) => {
       }
     });
 
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Request otp Routes
+app.post("/admin/request-otp", async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    console.log(`[Admin OTP] Received OTP request for email: ${email}`);
+
+    if (email !== process.env.ADMIN_EMAIL) {
+      console.log(`[Admin OTP] Unauthorized OTP request attempt for email: ${email}`);
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min
+
+    await Otp.findOneAndUpdate(
+      { email },
+      { otp, expiresAt },
+      { upsert: true, new: true }
+    );
+
+    await sendOTPEmail(email, otp);
+    console.log(`[Admin OTP] OTP email sent to: ${email} with OTP: ${otp}`);
+
+    res.json({ message: "OTP sent" });
+  } catch (err) {
+    console.error("[Admin OTP] Error sending OTP:", err);
+    next(err);
+  }
+});
+
+// Verify otp Routes
+app.post("/admin/verify-otp", async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    console.log(`[Admin OTP] Verification attempt for email: ${email} with OTP: ${otp}`);
+
+    const record = await Otp.findOne({ email });
+
+    if (!record || record.otp !== otp || record.expiresAt < new Date()) {
+      console.log(`[Admin OTP] Invalid or expired OTP for email: ${email}`);
+      return res.status(400).json({ error: "Invalid or expired OTP" });
+    }
+
+    await Otp.deleteOne({ email }); // Remove used OTP
+    console.log(`[Admin OTP] OTP verified for email: ${email}`);
+
+    const token = jwt.sign({ isAdmin: true }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    res.json({ message: "OTP verified", token });
+  } catch (err) {
+    console.error("[Admin OTP] Error verifying OTP:", err);
+    next(err);
+  }
+});
+
+
+// authenticate admin token
+const authenticateAdmin = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Token required" });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err || !decoded?.isAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    req.admin = true;
+    next();
+  });
+};
+// Admin Routes
+app.get("/admin/dashboard", authenticateAdmin, (req, res) => {
+  res.json({ message: "Welcome Admin!" });
+});
+// Admin can view all users
+app.get("/admin/users", authenticateAdmin, async (req, res, next) => {
+  try {
+    const users = await User.find().select('-password');
+    res.json({ users });
   } catch (error) {
     next(error);
   }
@@ -337,5 +421,5 @@ app.use('*', (req, res) => {
 
 const PORT = process.env.BACK_PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(` Server running on http://localhost:${PORT}`);
 });

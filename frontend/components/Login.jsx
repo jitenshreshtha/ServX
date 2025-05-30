@@ -162,6 +162,17 @@ function Login() {
             </small>
           </div>
         </div>
+        <div className="text-center mt-3">
+          <hr />
+          <span>Are you an admin? </span>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-secondary ms-2"
+            onClick={() => navigate("/admin-login")}
+          >
+            Admin Login
+          </button>
+        </div>
       </div>
     </div>
   );
