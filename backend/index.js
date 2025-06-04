@@ -254,6 +254,18 @@ app.get("/admin/users", authenticateAdmin, async (req, res, next) => {
     next(error);
   }
 });
+// Admin can view all listings
+app.get("/admin/all-listings", authenticateAdmin, async (req, res, next) => {
+  try {
+    const listings = await Listing.find()
+      .populate('author', 'name email')
+      .sort({ createdAt: -1 });
+    
+    res.json({ listings });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Protected Routes
 
