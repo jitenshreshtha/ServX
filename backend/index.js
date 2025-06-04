@@ -11,18 +11,21 @@ const setupSocketIO = require("./controllers/chatController");
 const User = require("./models/User");
 const Listing = require("./models/Listing");
 const Project = require("./models/Project");
-const { Message, Conversation } = require("./models/Message");
+const Message = require("./models/Message");
+const Conversation = require("./models/Conversation");
 const Otp = require("./models/Otp");
 const sendOTPEmail = require("./utils/sendEmail");
 const app = express();
 const server = require("http").createServer(app);
 
 // Middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(cors({ 
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true 
-}));
+app.use(express.json({ limit: "10mb" }));
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    credentials: true,
+  })
+);
 
 // Database connection
 mongoose
@@ -35,8 +38,8 @@ mongoose
 
 // JWT Authentication middleware
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
     return res.status(401).json({ error: "Access token required" });
@@ -55,33 +58,33 @@ const authenticateToken = (req, res, next) => {
 const errorHandler = (err, req, res, next) => {
   console.error("Error:", err);
 
-  if (err.name === 'ValidationError') {
-    const errors = Object.values(err.errors).map(e => e.message);
-    return res.status(400).json({ error: "Validation failed", details: errors });
+  if (err.name === "ValidationError") {
+    const errors = Object.values(err.errors).map((e) => e.message);
+    return res
+      .status(400)
+      .json({ error: "Validation failed", details: errors });
   }
 
   if (err.code === 11000) {
     return res.status(400).json({ error: "Email already exists" });
   }
 
-  if (err.name === 'CastError') {
+  if (err.name === "CastError") {
     return res.status(400).json({ error: "Invalid ID format" });
   }
 
   res.status(500).json({ error: "Internal server error" });
 };
 
-
-
 setupSocketIO(server);
 // Routes
 
 // Health check
 app.get("/", (req, res) => {
-  res.json({ 
-    message: "ServX API is running", 
+  res.json({
+    message: "ServX API is running",
     version: "1.0.0",
-    endpoints: ["/signup", "/login", "/listings", "/projects", "/messages"]
+    endpoints: ["/signup", "/login", "/listings", "/projects", "/messages"],
   });
 });
 
@@ -103,7 +106,7 @@ app.post("/signup", async (req, res, next) => {
       password,
       skills: skills || [],
       bio: bio || "",
-      location: location || {}
+      location: location || {},
     });
 
     await user.save();
@@ -123,10 +126,9 @@ app.post("/signup", async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        skills: user.skills
-      }
+        skills: user.skills,
+      },
     });
-
   } catch (error) {
     next(error);
   }
@@ -163,10 +165,9 @@ app.post("/login", async (req, res, next) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        skills: user.skills
-      }
+        skills: user.skills,
+      },
     });
-
   } catch (error) {
     next(error);
   }
@@ -179,7 +180,9 @@ app.post("/admin/request-otp", async (req, res, next) => {
     console.log(`[Admin OTP] Received OTP request for email: ${email}`);
 
     if (email !== process.env.ADMIN_EMAIL) {
-      console.log(`[Admin OTP] Unauthorized OTP request attempt for email: ${email}`);
+      console.log(
+        `[Admin OTP] Unauthorized OTP request attempt for email: ${email}`
+      );
       return res.status(403).json({ error: "Not authorized" });
     }
 
@@ -206,7 +209,9 @@ app.post("/admin/request-otp", async (req, res, next) => {
 app.post("/admin/verify-otp", async (req, res, next) => {
   try {
     const { email, otp } = req.body;
-    console.log(`[Admin OTP] Verification attempt for email: ${email} with OTP: ${otp}`);
+    console.log(
+      `[Admin OTP] Verification attempt for email: ${email} with OTP: ${otp}`
+    );
 
     const record = await Otp.findOne({ email });
 
@@ -218,14 +223,15 @@ app.post("/admin/verify-otp", async (req, res, next) => {
     await Otp.deleteOne({ email }); // Remove used OTP
     console.log(`[Admin OTP] OTP verified for email: ${email}`);
 
-    const token = jwt.sign({ isAdmin: true }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const token = jwt.sign({ isAdmin: true }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
     res.json({ message: "OTP verified", token });
   } catch (err) {
     console.error("[Admin OTP] Error verifying OTP:", err);
     next(err);
   }
 });
-
 
 // authenticate admin token
 const authenticateAdmin = (req, res, next) => {
@@ -248,7 +254,7 @@ app.get("/admin/dashboard", authenticateAdmin, (req, res) => {
 // Admin can view all users
 app.get("/admin/users", authenticateAdmin, async (req, res, next) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await User.find().select("-password");
     res.json({ users });
   } catch (error) {
     next(error);
@@ -258,9 +264,9 @@ app.get("/admin/users", authenticateAdmin, async (req, res, next) => {
 app.get("/admin/all-listings", authenticateAdmin, async (req, res, next) => {
   try {
     const listings = await Listing.find()
-      .populate('author', 'name email')
+      .populate("author", "name email")
       .sort({ createdAt: -1 });
-    
+
     res.json({ listings });
   } catch (error) {
     next(error);
@@ -272,7 +278,7 @@ app.get("/admin/all-listings", authenticateAdmin, async (req, res, next) => {
 // Get current user profile
 app.get("/profile", authenticateToken, async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
+    const user = await User.findById(req.user.userId).select("-password");
     res.json({ user });
   } catch (error) {
     next(error);
@@ -283,12 +289,12 @@ app.get("/profile", authenticateToken, async (req, res, next) => {
 app.put("/profile", authenticateToken, async (req, res, next) => {
   try {
     const { name, skills, bio, location } = req.body;
-    
+
     const user = await User.findByIdAndUpdate(
       req.user.userId,
       { name, skills, bio, location },
       { new: true, runValidators: true }
-    ).select('-password');
+    ).select("-password");
 
     res.json({ success: true, user });
   } catch (error) {
@@ -299,8 +305,17 @@ app.put("/profile", authenticateToken, async (req, res, next) => {
 // Listing Routes
 app.post("/listings", authenticateToken, async (req, res, next) => {
   try {
-    const { title, description, skillOffered, skillWanted, category, estimatedDuration, location, tags } = req.body;
-    
+    const {
+      title,
+      description,
+      skillOffered,
+      skillWanted,
+      category,
+      estimatedDuration,
+      location,
+      tags,
+    } = req.body;
+
     const listing = new Listing({
       title,
       description,
@@ -310,11 +325,11 @@ app.post("/listings", authenticateToken, async (req, res, next) => {
       estimatedDuration,
       location,
       tags: tags || [],
-      author: req.user.userId
+      author: req.user.userId,
     });
 
     await listing.save();
-    await listing.populate('author', 'name email skills rating');
+    await listing.populate("author", "name email skills rating");
 
     res.status(201).json({ success: true, listing });
   } catch (error) {
@@ -324,32 +339,32 @@ app.post("/listings", authenticateToken, async (req, res, next) => {
 
 app.get("/listings", async (req, res, next) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      category, 
-      skillOffered, 
-      skillWanted, 
+    const {
+      page = 1,
+      limit = 10,
+      category,
+      skillOffered,
+      skillWanted,
       search,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
+      sortBy = "createdAt",
+      sortOrder = "desc",
     } = req.query;
 
     // Build filter object
     const filter = { isActive: true };
     if (category) filter.category = category;
-    if (skillOffered) filter.skillOffered = new RegExp(skillOffered, 'i');
-    if (skillWanted) filter.skillWanted = new RegExp(skillWanted, 'i');
+    if (skillOffered) filter.skillOffered = new RegExp(skillOffered, "i");
+    if (skillWanted) filter.skillWanted = new RegExp(skillWanted, "i");
     if (search) {
       filter.$text = { $search: search };
     }
 
     // Build sort object
     const sort = {};
-    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    sort[sortBy] = sortOrder === "desc" ? -1 : 1;
 
     const listings = await Listing.find(filter)
-      .populate('author', 'name email skills rating location')
+      .populate("author", "name email skills rating location")
       .sort(sort)
       .limit(limit * 1)
       .skip((page - 1) * limit);
@@ -361,8 +376,8 @@ app.get("/listings", async (req, res, next) => {
       pagination: {
         current: page,
         pages: Math.ceil(total / limit),
-        total
-      }
+        total,
+      },
     });
   } catch (error) {
     next(error);
@@ -373,7 +388,7 @@ app.get("/listings", async (req, res, next) => {
 app.get("/my-listings", authenticateToken, async (req, res, next) => {
   try {
     const listings = await Listing.find({ author: req.user.userId })
-      .populate('author', 'name email skills rating')
+      .populate("author", "name email skills rating")
       .sort({ createdAt: -1 });
 
     res.json({ listings });
@@ -387,8 +402,8 @@ app.get("/messages", authenticateToken, async (req, res) => {
     const { conversationId } = req.query;
     const messages = await Message.find({ conversation: conversationId })
       .sort({ createdAt: 1 })
-      .populate('sender', 'name');
-    
+      .populate("sender", "name");
+
     res.json({ messages });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch messages" });
@@ -399,18 +414,18 @@ app.get("/messages", authenticateToken, async (req, res) => {
 app.get("/conversations", authenticateToken, async (req, res) => {
   try {
     const { user1, user2, listing } = req.query;
-    
+
     // Find existing conversation
     let conversation = await Conversation.findOne({
       participants: { $all: [user1, user2], $size: 2 },
-      listing
+      listing,
     });
 
     // Create if doesn't exist
     if (!conversation) {
       conversation = new Conversation({
         participants: [user1, user2],
-        listing
+        listing,
       });
       await conversation.save();
     }
@@ -421,15 +436,58 @@ app.get("/conversations", authenticateToken, async (req, res) => {
   }
 });
 
+app.get("/conversations/user", authenticateToken, async (req, res) => {
+  try {
+    // Correct: Access userId directly from req.user (JWT payload)
+    const userId = req.user.userId;
+
+    const conversations = await Conversation.find({
+      participants: userId,
+    })
+      .populate("participants", "name email")
+      .populate("listing", "title")
+      .populate("lastMessage")
+      .sort({ updatedAt: -1 });
+
+    res.json(conversations);
+  } catch (error) {
+    console.error("Error loading conversations:", error);
+    res.status(500).json({ error: "Failed to load conversations" });
+  }
+});
+
+app.get(
+  "/conversations/user/:id/unread",
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      const userId = req.params.id;
+
+      const conversations = await Conversation.find({
+        participants: userId,
+      }).populate("lastMessage");
+
+      const unread = conversations.filter(
+        (conv) =>
+          conv.lastMessage &&
+          conv.lastMessage.sender.toString() !== userId &&
+          !conv.lastMessage.readBy?.includes(userId)
+      );
+
+      res.json({ count: unread.length });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // Apply error handling middleware
 app.use(errorHandler);
 
 // Handle 404
-app.use('*', (req, res) => {
+app.use("*", (req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
-
-
 
 const PORT = process.env.BACK_PORT || 3000;
 server.listen(PORT, () => {

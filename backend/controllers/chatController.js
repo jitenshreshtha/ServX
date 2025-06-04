@@ -19,6 +19,12 @@ module.exports = (server) => {
       console.log(`User joined room: ${room}`);
     });
 
+    // Handle joining user-specific room for notifications
+    socket.on("join_user_room", (userId) => {
+      socket.join(`user_${userId}`);
+      console.log(`User joined notification room: user_${userId}`);
+    });
+
     // Handle private messages
     socket.on("send_private_message", async (data) => {
       try {
@@ -51,15 +57,41 @@ module.exports = (server) => {
         conversation.lastMessage = newMessage._id;
         await conversation.save();
 
-        // Emit message with database ID
-        io.to(data.room).emit("receive_private_message", {
+        // Emit message to both participants
+        const room = `room_${[senderId, recipientId].sort().join("_")}`;
+        io.to(room).emit("receive_private_message", {
           ...data,
           _id: newMessage._id,
           content: message, 
           timestamp: new Date().toISOString(),
         });
+
+        // Notify recipient of new message
+        io.to(`user_${recipientId}`).emit("new_message", {
+          conversationId: conversation._id,
+          senderId,
+          senderName: data.senderName,
+          message: message,
+        });
+
       } catch (err) {
         console.error("Error saving message:", err);
+      }
+    });
+
+    socket.on("fetch_conversations", async (userId) => {
+      try {
+        const conversations = await Conversation.find({
+          participants: userId
+        })
+        .populate('participants', 'name email')
+        .populate('listing', 'title')
+        .populate('lastMessage')
+        .sort({ "lastMessage.createdAt": -1 });
+
+        socket.emit("conversations_list", conversations);
+      } catch (err) {
+        console.error("Error fetching conversations:", err);
       }
     });
 

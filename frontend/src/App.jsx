@@ -6,12 +6,13 @@ import CreateListing from "../pages/CreateListing";
 import ProfilePage from '../pages/ProfilePage';
 import MyListingsPage from '../pages/MyListingsPage';
 import Chat from "../components/Chat";
-import { AuthProvider } from "./context/Authcontext";
+import { AuthProvider } from "./context/AuthContext";
 import AdminLoginPage from "../pages/AdminLoginPage";
 import AdminDashboardPage from "../pages/AdminDashboardPage";
 import ProtectedRoute from '../components/ProtectedRoute';
 import AboutUsPage from '../pages/AboutUsPage';
 import ContactUsPage from '../pages/ContactUsPage';
+import InboxPage from "../pages/InboxPage";
 function App() {
   return (
     <AuthProvider>
@@ -29,6 +30,7 @@ function App() {
           {/* Legacy route for backward compatibility */}
           <Route path="/create-post" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>}/>
 
           <Route path="*" element={
             <div className="container mt-5 text-center">

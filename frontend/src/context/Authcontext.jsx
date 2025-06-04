@@ -1,5 +1,7 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useState, useEffect, useContext } from "react";
+import io from "socket.io-client";
+const socket = io.connect("http://localhost:3000");
 
 const AuthContext = createContext();
 
@@ -36,6 +38,7 @@ export const AuthProvider = ({ children }) => {
         currentUser,
         login,
         logout,
+        socket 
       }}
     >
       {children}

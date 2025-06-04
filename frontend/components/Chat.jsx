@@ -3,96 +3,97 @@ import io from "socket.io-client";
 
 const socket = io.connect("http://localhost:3000");
 
-function Chat({ currentUser, recipient, listing, onClose }) {
+function Chat({
+  currentUser,
+  recipient,
+  listing,
+  onClose,
+  conversationId,
+  isModal = true,
+  initialMessages = [], // Add this prop to receive pre-fetched messages
+}) {
   const [message, setMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState([]);
+  const [chatHistory, setChatHistory] = useState(initialMessages); // Initialize with pre-fetched messages
   const [roomId, setRoomId] = useState("");
-  const [conversationId, setConversationId] = useState(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
-  // Create unique room ID and fetch conversation
   useEffect(() => {
     if (currentUser && recipient) {
       // Create unique room ID
-      const ids = [currentUser.id, recipient.id].sort();
+      const ids = [currentUser.id, recipient._id].sort();
       const room = `room_${ids.join("_")}`;
       setRoomId(room);
       socket.emit("join_room", room);
-
-      // Find or create conversation
-      const fetchConversation = async () => {
-        try {
-          const token = localStorage.getItem("token");
-          const response = await fetch(
-            `http://localhost:3000/conversations?user1=${currentUser.id}&user2=${recipient.id}&listing=${listing.id}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-
-          const data = await response.json();
-          if (response.ok && data.conversation) {
-            setConversationId(data.conversation._id);
-            fetchMessages(data.conversation._id);
-          }
-        } catch (err) {
-          console.error("Error fetching conversation:", err);
-        }
-      };
-
-      fetchConversation();
     }
-  }, [currentUser, recipient, listing.id]);
+  }, [currentUser, recipient]);
 
-  // Fetch messages for conversation
-  const fetchMessages = async (conversationId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `http://localhost:3000/messages?conversation=${conversationId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+  // Fetch messages when conversationId changes
+  useEffect(() => {
+    const fetchMessages = async () => {
+      if (!conversationId) return;
+
+      setLoadingMessages(true);
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(
+          `http://localhost:3000/messages?conversationId=${conversationId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch messages");
         }
-      );
 
-      const data = await response.json();
-      if (response.ok) {
-        // Properly handle sender information
+        const data = await response.json();
         const formattedMessages = data.messages.map((msg) => ({
           _id: msg._id,
-          message: msg.content,
-          senderId: msg.sender._id,
-          senderName: msg.sender.name,
+          content: msg.content,
+          senderId: msg.sender?._id,
+          senderName: msg.sender?.name,
           timestamp: msg.createdAt,
         }));
-        setChatHistory(formattedMessages);
-      }
-    } catch (err) {
-      console.error("Error fetching messages:", err);
-    }
-  };
 
-  useEffect(() => {
-    const handleReceiveMessage = (data) => {
-      setChatHistory((prev) => [
-        ...prev,
-        {
-          ...data,
-          content: data.content || data.message,
-          timestamp: data.timestamp || new Date().toISOString(),
-        },
-      ]);
+        setChatHistory(formattedMessages);
+      } catch (err) {
+        console.error("Error fetching messages:", err);
+      } finally {
+        setLoadingMessages(false);
+      }
     };
 
-    socket.on("receive_private_message", handleReceiveMessage);
+    // Only fetch if we don't have initial messages
+    if (initialMessages.length === 0) {
+      fetchMessages();
+    }
+  }, [conversationId]);
+
+  // Listen for new messages
+  useEffect(() => {
+    const handleNewMessage = (data) => {
+      if (data.conversationId === conversationId) {
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            _id: data._id || Date.now().toString(), // Temporary ID if not provided
+            content: data.content || data.message,
+            senderId: data.senderId,
+            senderName: data.senderName,
+            timestamp: data.timestamp || new Date().toISOString(),
+          },
+        ]);
+      }
+    };
+
+    socket.on("receive_private_message", handleNewMessage);
 
     return () => {
-      socket.off("receive_private_message", handleReceiveMessage);
+      socket.off("receive_private_message", handleNewMessage);
     };
-  }, []);
+  }, [conversationId]);
 
   const sendMessage = () => {
     if (message.trim() === "") return;
@@ -102,14 +103,105 @@ function Chat({ currentUser, recipient, listing, onClose }) {
       message: message.trim(),
       senderId: currentUser.id,
       senderName: currentUser.name,
-      recipientId: recipient.id,
-      listingId: listing.id,
+      recipientId: recipient._id,
+      listingId: listing._id,
     };
 
-    console.log("Sending message:", messageData);
     socket.emit("send_private_message", messageData);
+
+    // Add message to local history immediately
+    setChatHistory((prev) => [
+      ...prev,
+      {
+        _id: Date.now().toString(), // Temporary ID
+        content: message.trim(),
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
     setMessage("");
   };
+
+  if (!isModal) {
+    return (
+      <div className="h-100 d-flex flex-column">
+        <div
+          className="flex-grow-1 overflow-auto p-3"
+          style={{ height: "400px" }}
+        >
+          {loadingMessages ? (
+            <div className="text-center py-4">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          ) : chatHistory.length === 0 ? (
+            <div className="text-center text-muted py-4">
+              No messages yet. Start the conversation!
+            </div>
+          ) : (
+            chatHistory.map((msg) => (
+              <div
+                key={msg._id || msg.timestamp}
+                className={`mb-2 ${
+                  msg.senderId === currentUser.id ? "text-end" : ""
+                }`}
+              >
+                <div className="d-flex justify-content-between align-items-center">
+                  <small className="fw-bold">
+                    {msg.senderId === currentUser.id ? "You" : msg.senderName}
+                  </small>
+                  <small className="text-muted">
+                    {msg.timestamp
+                      ? new Date(msg.timestamp).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "Just now"}
+                  </small>
+                </div>
+                <div
+                  className={`rounded p-2 d-inline-block ${
+                    msg.senderId === currentUser.id
+                      ? "bg-primary text-white"
+                      : "bg-light"
+                  }`}
+                  style={{ maxWidth: "80%" }}
+                >
+                  {msg.content}
+                </div>
+                <div className="text-muted mt-1" style={{ fontSize: "0.7rem" }}>
+                  {new Date(msg.timestamp).toLocaleDateString()}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="input-group p-3 border-top">
+          <input
+            type="text"
+            className="form-control"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type your message..."
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            aria-label="Message input"
+          />
+          <button
+            className="btn btn-primary"
+            onClick={sendMessage}
+            disabled={message.trim() === ""}
+            aria-label="Send message"
+          >
+            <i className="bi bi-send"></i>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
