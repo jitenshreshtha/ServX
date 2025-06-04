@@ -6,7 +6,7 @@ import CreateListing from "../pages/CreateListing";
 import ProfilePage from '../pages/ProfilePage';
 import MyListingsPage from '../pages/MyListingsPage';
 import Chat from "../components/Chat";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider } from "./context/Authcontext";
 import AdminLoginPage from "../pages/AdminLoginPage";
 import AdminDashboardPage from "../pages/AdminDashboardPage";
 import ProtectedRoute from '../components/ProtectedRoute';

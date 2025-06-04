@@ -341,7 +341,7 @@ app.get("/listings", async (req, res, next) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit = 6,
       category,
       skillOffered,
       skillWanted,
@@ -350,36 +350,94 @@ app.get("/listings", async (req, res, next) => {
       sortOrder = "desc",
     } = req.query;
 
+    // Convert page and limit to numbers and validate
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(48, Math.max(1, parseInt(limit))); // Max 48 items per page
+    const skip = (currentPage - 1) * itemsPerPage;
+
     // Build filter object
     const filter = { isActive: true };
-    if (category) filter.category = category;
-    if (skillOffered) filter.skillOffered = new RegExp(skillOffered, "i");
-    if (skillWanted) filter.skillWanted = new RegExp(skillWanted, "i");
-    if (search) {
-      filter.$text = { $search: search };
+
+    // Category filter
+    if (category && category.trim()) {
+      filter.category = category;
+    }
+    
+    // Skill filters (case-insensitive partial match)
+    if (skillOffered && skillOffered.trim()) {
+      filter.skillOffered = new RegExp(skillOffered.trim(), 'i');
+    }
+    
+    if (skillWanted && skillWanted.trim()) {
+      filter.skillWanted = new RegExp(skillWanted.trim(), 'i');
+    }
+    
+    // Text search across multiple fields
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      filter.$or = [
+        { title: new RegExp(searchTerm, 'i') },
+        { description: new RegExp(searchTerm, 'i') },
+        { skillOffered: new RegExp(searchTerm, 'i') },
+        { skillWanted: new RegExp(searchTerm, 'i') },
+        { tags: { $in: [new RegExp(searchTerm, 'i')] } }
+      ];
     }
 
     // Build sort object
-    const sort = {};
-    sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+    const validSortFields = ['createdAt', 'title', 'skillOffered', 'skillWanted', 'views'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const sortDirection = sortOrder === 'asc' ? 1 : -1;
+    const sort = { [sortField]: sortDirection };
 
-    const listings = await Listing.find(filter)
-      .populate("author", "name email skills rating location")
-      .sort(sort)
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+    // Execute queries in parallel for better performance
+    const [listings, totalCount] = await Promise.all([
+      Listing.find(filter)
+        .populate('author', 'name email skills rating location')
+        .sort(sort)
+        .limit(itemsPerPage)
+        .skip(skip)
+        .lean(), // Use lean() for better performance when we don't need full Mongoose documents
+      
+      Listing.countDocuments(filter)
+    ]);
 
-    const total = await Listing.countDocuments(filter);
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    const hasNextPage = currentPage < totalPages;
+    const hasPrevPage = currentPage > 1;
 
+    // Pagination metadata
+    const pagination = {
+      current: currentPage,
+      pages: totalPages,
+      total: totalCount,
+      hasNext: hasNextPage,
+      hasPrev: hasPrevPage,
+      limit: itemsPerPage,
+      showing: {
+        start: totalCount === 0 ? 0 : skip + 1,
+        end: Math.min(skip + itemsPerPage, totalCount)
+      }
+    };
+
+    // Response with listings and pagination info
     res.json({
+      success: true,
       listings,
-      pagination: {
-        current: page,
-        pages: Math.ceil(total / limit),
-        total,
-      },
+      pagination,
+      filters: {
+        category: category || null,
+        skillOffered: skillOffered || null,
+        skillWanted: skillWanted || null,
+        search: search || null,
+        sortBy: sortField,
+        sortOrder: sortOrder
+      }
     });
+
   } catch (error) {
+    console.error('Error fetching listings:', error);
     next(error);
   }
 });

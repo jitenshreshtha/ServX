@@ -1,333 +1,254 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
-function CreateListing() {
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    skillOffered: "",
-    skillWanted: "",
-    category: "",
-    estimatedDuration: "",
-    tags: "",
-    location: {
-      city: "",
-      state: "",
-      country: "",
-      isRemote: false
-    }
-  });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
+function MyListings() {
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all'); // all, active, completed, cancelled
   const navigate = useNavigate();
 
-  const categories = [
-    "Web Development",
-    "Mobile Development", 
-    "Design",
-    "Writing",
-    "Marketing",
-    "Photography",
-    "Video Editing",
-    "Tutoring",
-    "Home Services",
-    "Crafts",
-    "Consulting",
-    "Other"
-  ];
+  useEffect(() => {
+    fetchMyListings();
+  }, []);
 
-  const durations = [
-    "1-3 hours",
-    "1 day",
-    "2-3 days",
-    "1 week",
-    "2+ weeks"
-  ];
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.title.trim()) newErrors.title = "Title is required";
-    if (!formData.description.trim()) newErrors.description = "Description is required";
-    if (!formData.skillOffered.trim()) newErrors.skillOffered = "Offered skill is required";
-    if (!formData.skillWanted.trim()) newErrors.skillWanted = "Wanted skill is required";
-    if (!formData.category) newErrors.category = "Category is required";
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) return;
-    
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('Please login first');
-      navigate('/login');
-      return;
-    }
-
+  const fetchMyListings = async () => {
     setLoading(true);
     try {
-      const submitData = {
-        ...formData,
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
-      };
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please login first!');
+        navigate('/login');
+        return;
+      }
 
-      const response = await fetch('http://localhost:3000/listings', {
-        method: 'POST',
+      const response = await fetch('http://localhost:3000/my-listings', {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(submitData)
+        }
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create listing');
+        if (response.status === 401 || response.status === 403) {
+          alert('Session expired. Please login again.');
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          localStorage.removeItem('isLoggedIn');
+          navigate('/login');
+          return;
+        }
+        throw new Error('Failed to fetch listings');
       }
 
-      alert('Listing created successfully!');
-      navigate('/');
-
+      const data = await response.json();
+      setListings(data.listings || []);
     } catch (error) {
-      console.error('Create listing error:', error);
-      if (error.message.includes('token')) {
-        alert('Session expired. Please login again.');
-        navigate('/login');
-      } else {
-        alert('Failed to create listing: ' + error.message);
-      }
+      console.error('Error fetching listings:', error);
+      alert('Failed to load your listings: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    
-    if (name.startsWith('location.')) {
-      const locationField = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        location: {
-          ...prev.location,
-          [locationField]: type === 'checkbox' ? checked : value
-        }
-      }));
-    } else {
-      setFormData(prev => ({ 
-        ...prev, 
-        [name]: type === 'checkbox' ? checked : value 
-      }));
-    }
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
+  const filteredListings = listings.filter(listing => {
+    if (filter === 'all') return true;
+    return listing.status === filter;
+  });
+
+  const getStatusBadge = (status) => {
+    const statusClasses = {
+      active: 'bg-success',
+      in_progress: 'bg-warning',
+      completed: 'bg-primary',
+      cancelled: 'bg-secondary'
+    };
+    return `badge ${statusClasses[status] || 'bg-secondary'}`;
   };
 
-  return (
-    <div className="container mt-5" style={{ maxWidth: "800px" }}>
-      <div className="card shadow">
-        <div className="card-body p-4">
-          <h2 className="mb-4 text-center">Create New Listing</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="row">
-              <div className="col-md-6 mb-3">
-                <label htmlFor="title" className="form-label">Title *</label>
-                <input
-                  type="text"
-                  className={`form-control ${errors.title ? 'is-invalid' : ''}`}
-                  id="title"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleChange}
-                  placeholder="e.g., Need a logo design for my startup"
-                  required
-                />
-                {errors.title && <div className="invalid-feedback">{errors.title}</div>}
-              </div>
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
-              <div className="col-md-6 mb-3">
-                <label htmlFor="category" className="form-label">Category *</label>
-                <select
-                  className={`form-select ${errors.category ? 'is-invalid' : ''}`}
-                  id="category"
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">Select a category</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-                {errors.category && <div className="invalid-feedback">{errors.category}</div>}
-              </div>
-            </div>
-
-            <div className="mb-3">
-              <label htmlFor="description" className="form-label">Description *</label>
-              <textarea
-                className={`form-control ${errors.description ? 'is-invalid' : ''}`}
-                id="description"
-                name="description"
-                rows="4"
-                value={formData.description}
-                onChange={handleChange}
-                placeholder="Describe what you need and what you're offering in detail..."
-                required
-              />
-              {errors.description && <div className="invalid-feedback">{errors.description}</div>}
-            </div>
-
-            <div className="row">
-              <div className="col-md-6 mb-3">
-                <label htmlFor="skillOffered" className="form-label">Skill You're Offering *</label>
-                <input
-                  type="text"
-                  className={`form-control ${errors.skillOffered ? 'is-invalid' : ''}`}
-                  id="skillOffered"
-                  name="skillOffered"
-                  value={formData.skillOffered}
-                  onChange={handleChange}
-                  placeholder="e.g., Web Development"
-                  required
-                />
-                {errors.skillOffered && <div className="invalid-feedback">{errors.skillOffered}</div>}
-              </div>
-
-              <div className="col-md-6 mb-3">
-                <label htmlFor="skillWanted" className="form-label">Skill You Want *</label>
-                <input
-                  type="text"
-                  className={`form-control ${errors.skillWanted ? 'is-invalid' : ''}`}
-                  id="skillWanted"
-                  name="skillWanted"
-                  value={formData.skillWanted}
-                  onChange={handleChange}
-                  placeholder="e.g., Graphic Design"
-                  required
-                />
-                {errors.skillWanted && <div className="invalid-feedback">{errors.skillWanted}</div>}
-              </div>
-            </div>
-
-            <div className="row">
-              <div className="col-md-6 mb-3">
-                <label htmlFor="estimatedDuration" className="form-label">Estimated Duration</label>
-                <select
-                  className="form-select"
-                  id="estimatedDuration"
-                  name="estimatedDuration"
-                  value={formData.estimatedDuration}
-                  onChange={handleChange}
-                >
-                  <option value="">Select duration</option>
-                  {durations.map(duration => (
-                    <option key={duration} value={duration}>{duration}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-md-6 mb-3">
-                <label htmlFor="tags" className="form-label">Tags</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id="tags"
-                  name="tags"
-                  value={formData.tags}
-                  onChange={handleChange}
-                  placeholder="e.g., urgent, beginner-friendly, remote (comma separated)"
-                />
-                <div className="form-text">Enter tags separated by commas</div>
-              </div>
-            </div>
-
-            <div className="row">
-              <div className="col-md-4 mb-3">
-                <label htmlFor="location.city" className="form-label">City</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id="location.city"
-                  name="location.city"
-                  value={formData.location.city}
-                  onChange={handleChange}
-                  placeholder="e.g., Toronto"
-                />
-              </div>
-
-              <div className="col-md-4 mb-3">
-                <label htmlFor="location.state" className="form-label">State/Province</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id="location.state"
-                  name="location.state"
-                  value={formData.location.state}
-                  onChange={handleChange}
-                  placeholder="e.g., Ontario"
-                />
-              </div>
-
-              <div className="col-md-4 mb-3">
-                <label htmlFor="location.country" className="form-label">Country</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  id="location.country"
-                  name="location.country"
-                  value={formData.location.country}
-                  onChange={handleChange}
-                  placeholder="e.g., Canada"
-                />
-              </div>
-            </div>
-
-            <div className="mb-3 form-check">
-              <input
-                type="checkbox"
-                className="form-check-input"
-                id="location.isRemote"
-                name="location.isRemote"
-                checked={formData.location.isRemote}
-                onChange={handleChange}
-              />
-              <label className="form-check-label" htmlFor="location.isRemote">
-                This can be done remotely
-              </label>
-            </div>
-
-            <div className="d-grid gap-2 d-md-flex justify-content-md-end">
-              <button 
-                type="button" 
-                className="btn btn-secondary me-md-2"
-                onClick={() => navigate('/')}
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                className="btn btn-primary"
-                disabled={loading}
-              >
-                {loading ? "Creating..." : "Create Listing"}
-              </button>
-            </div>
-          </form>
+  if (loading) {
+    return (
+      <div className="container mt-5">
+        <div className="text-center py-5">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3">Loading your listings...</p>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="container mt-4">
+      {/* Header */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h2>My Listings</h2>
+          <p className="text-muted">Manage your skill exchange listings</p>
+        </div>
+        <Link to="/create-listing" className="btn btn-primary">
+          <i className="bi bi-plus-circle me-2"></i>Create New Listing
+        </Link>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="card mb-4">
+        <div className="card-body">
+          <div className="btn-group" role="group">
+            <button
+              type="button"
+              className={`btn ${filter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('all')}
+            >
+              All ({listings.length})
+            </button>
+            <button
+              type="button"
+              className={`btn ${filter === 'active' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('active')}
+            >
+              Active ({listings.filter(l => l.status === 'active').length})
+            </button>
+            <button
+              type="button"
+              className={`btn ${filter === 'in_progress' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('in_progress')}
+            >
+              In Progress ({listings.filter(l => l.status === 'in_progress').length})
+            </button>
+            <button
+              type="button"
+              className={`btn ${filter === 'completed' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setFilter('completed')}
+            >
+              Completed ({listings.filter(l => l.status === 'completed').length})
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Listings */}
+      {filteredListings.length === 0 ? (
+        <div className="text-center py-5">
+          <i className="bi bi-list-ul display-1 text-muted"></i>
+          <h4 className="mt-3">
+            {filter === 'all' ? 'No listings yet' : `No ${filter.replace('_', ' ')} listings`}
+          </h4>
+          <p className="text-muted">
+            {filter === 'all' 
+              ? "You haven't created any listings yet. Start by creating your first listing!"
+              : `You don't have any ${filter.replace('_', ' ')} listings.`
+            }
+          </p>
+          {filter === 'all' && (
+            <Link to="/create-listing" className="btn btn-primary mt-3">
+              <i className="bi bi-plus-circle me-2"></i>Create Your First Listing
+            </Link>
+          )}
+        </div>
+      ) : (
+        <div className="row">
+          {filteredListings.map((listing) => (
+            <div className="col-lg-6 mb-4" key={listing._id}>
+              <div className="card h-100 shadow-sm">
+                <div className="card-body">
+                  <div className="d-flex justify-content-between align-items-start mb-2">
+                    <h5 className="card-title">{listing.title}</h5>
+                    <span className={getStatusBadge(listing.status)}>
+                      {listing.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                  
+                  <p className="card-text text-muted">
+                    {listing.description.length > 120 
+                      ? listing.description.substring(0, 120) + '...' 
+                      : listing.description}
+                  </p>
+                  
+                  <div className="row mb-3">
+                    <div className="col-6">
+                      <small className="text-muted">Offering:</small>
+                      <div className="fw-bold text-success">{listing.skillOffered}</div>
+                    </div>
+                    <div className="col-6">
+                      <small className="text-muted">Seeking:</small>
+                      <div className="fw-bold text-primary">{listing.skillWanted}</div>
+                    </div>
+                  </div>
+
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <span className="badge bg-light text-dark">{listing.category}</span>
+                    {listing.estimatedDuration && (
+                      <small className="text-muted">
+                        <i className="bi bi-clock me-1"></i>{listing.estimatedDuration}
+                      </small>
+                    )}
+                  </div>
+
+                  {listing.tags && listing.tags.length > 0 && (
+                    <div className="mb-3">
+                      {listing.tags.slice(0, 3).map((tag, index) => (
+                        <span key={index} className="badge bg-secondary me-1 mb-1">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                      <small className="text-muted">Created: {formatDate(listing.createdAt)}</small>
+                      {listing.views > 0 && (
+                        <>
+                          <br />
+                          <small className="text-muted">
+                            <i className="bi bi-eye me-1"></i>{listing.views} views
+                          </small>
+                        </>
+                      )}
+                    </div>
+                    <div>
+                      {listing.location?.isRemote && (
+                        <span className="badge bg-info me-2">Remote</span>
+                      )}
+                      {listing.applicants && listing.applicants.length > 0 && (
+                        <span className="badge bg-warning">
+                          {listing.applicants.length} applicant{listing.applicants.length !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="card-footer bg-transparent">
+                  <div className="d-flex gap-2">
+                    <button className="btn btn-outline-primary btn-sm flex-fill">
+                      <i className="bi bi-eye me-1"></i>View
+                    </button>
+                    <button className="btn btn-outline-secondary btn-sm flex-fill">
+                      <i className="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    {listing.status === 'active' && (
+                      <button className="btn btn-outline-danger btn-sm">
+                        <i className="bi bi-pause me-1"></i>Pause
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-export default CreateListing;
+export default MyListings;
