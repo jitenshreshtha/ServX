@@ -13,6 +13,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import AboutUsPage from '../pages/AboutUsPage';
 import ContactUsPage from '../pages/ContactUsPage';
 import InboxPage from "../pages/InboxPage";
+import AuthCallback from '../components/AuthCallback'; 
 function App() {
   return (
     <AuthProvider>
@@ -31,6 +32,7 @@ function App() {
           <Route path="/create-post" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>}/>
+          <Route path="/auth/callback" element={<AuthCallback />} />
 
           <Route path="*" element={
             <div className="container mt-5 text-center">

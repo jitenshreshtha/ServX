@@ -3,6 +3,9 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+
 
 //chat module
 const setupSocketIO = require("./controllers/chatController");
@@ -88,27 +91,108 @@ app.get("/", (req, res) => {
   });
 });
 
-// User Authentication Routes
+
+// Configure Passport Google OAuth
+passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`, // ✅ Send code to backend
+    passReqToCallback: true
+  },
+  async (req, accessToken, refreshToken, profile, done) => {
+    try {
+      let user = await User.findOne({ email: profile.emails[0].value });
+
+      if (!user) {
+        user = new User({
+          name: profile.displayName,
+          email: profile.emails[0].value,
+          password: '', // Google users won't have passwords
+          isGoogleAuth: true,
+          profileImage: profile.photos[0]?.value || '',
+          isVerified: true
+        });
+        await user.save();
+      }
+
+      return done(null, user);
+    } catch (err) {
+      return done(err, null);
+    }
+  }
+));
+
+// Google Auth Initiation
+app.get('/auth/google', 
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    session: false
+  })
+);
+
+// Google Auth Callback
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { session: false }),
+  async (req, res) => {
+    try {
+      const user = req.user;
+      const isNewUser = !user.skills || user.skills.length === 0;
+
+      const token = jwt.sign(
+        { userId: user._id, email: user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      console.log(`[Google Auth] User ${user.email} logged in successfully.`);
+
+      // ✅ Final redirect to frontend
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&userId=${user._id}&isNewUser=${isNewUser}`);
+    } catch (error) {
+      console.error("[Google Auth] Error during Google authentication:", error);
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?error=${encodeURIComponent(error.message)}`);
+    }
+  }
+);
 app.post("/signup", async (req, res, next) => {
   try {
-    const { name, email, password, skills, bio, location } = req.body;
+    const { name, email, password, skills, bio, location, isGoogleAuth } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      if (existingUser.isGoogleAuth) {
+        return res.status(400).json({ 
+          error: "This email is registered with Google. Please sign in with Google.",
+          isGoogleAuth: true
+        });
+      }
       return res.status(400).json({ error: "Email already registered" });
     }
 
-    // Create new user
-    const user = new User({
+    // Validate password only if NOT Google signup
+    if (!isGoogleAuth) {
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+    }
+
+    // Create user, skip password if Google signup
+    const userData = {
       name,
       email,
-      password,
       skills: skills || [],
       bio: bio || "",
       location: location || {},
-    });
+      isGoogleAuth: !!isGoogleAuth,
+      isVerified: !!isGoogleAuth
+    };
 
+    if (!isGoogleAuth) {
+      userData.password = password; // Save password only for non-Google users
+    }
+
+    const user = new User(userData);
     await user.save();
 
     // Generate JWT token
@@ -120,37 +204,50 @@ app.post("/signup", async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully",
+      message: isGoogleAuth ? "Google signup successful" : "User registered successfully",
       token,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
         skills: user.skills,
-      },
+        isGoogleAuth: user.isGoogleAuth,
+      }
     });
+
   } catch (error) {
     next(error);
   }
 });
 
+
 app.post("/login", async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, isGoogleAuth } = req.body;
 
-    // Find user
+    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Check password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
+    // If the account was created with Google
+    if (user.isGoogleAuth && !isGoogleAuth) {
+      return res.status(401).json({
+        error: "This account was created with Google. Please use Google Sign-In.",
+        isGoogleAuth: true
+      });
     }
 
-    // Generate JWT token
+    // If not Google, validate password
+    if (!user.isGoogleAuth) {
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+    }
+
+    // Generate token
     const token = jwt.sign(
       { userId: user._id, email: user.email },
       process.env.JWT_SECRET,
@@ -166,13 +263,13 @@ app.post("/login", async (req, res, next) => {
         name: user.name,
         email: user.email,
         skills: user.skills,
-      },
+        isGoogleAuth: user.isGoogleAuth,
+      }
     });
   } catch (error) {
     next(error);
   }
 });
-
 // Request otp Routes
 app.post("/admin/request-otp", async (req, res, next) => {
   try {

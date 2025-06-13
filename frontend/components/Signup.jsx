@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import GoogleAuthButton from './GoogleAuthButton';
 
 function Signup() {
   const [formData, setFormData] = useState({
@@ -142,6 +143,14 @@ function Signup() {
                 onChange={handleChange}
                 placeholder="Tell us about yourself..."
               />
+            </div>
+            <div className="mb-3">
+              <div className="d-flex align-items-center mb-3">
+                <hr className="flex-grow-1" />
+                <span className="mx-2 text-muted">OR</span>
+                <hr className="flex-grow-1" />
+              </div>
+              <GoogleAuthButton className="w-100" />
             </div>
 
             <button 

@@ -60,11 +60,23 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  role: {
-    type: String,
-    enum: ["user", "admin"],
-    default: "user"
-  }
+role: {
+  type: String,
+  enum: ["user", "admin"],
+  default: "user"
+},
+isGoogleAuth: {
+  type: Boolean,
+  default: false
+},
+isVerified: {
+  type: Boolean,
+  default: false
+},
+profileImage: {
+  type: String,
+  default: ""
+}
 }, {
   timestamps: true
 });
@@ -96,5 +108,19 @@ userSchema.methods.toJSON = function() {
   delete userObject.password;
   return userObject;
 };
+// Add this to your User model
+userSchema.pre('save', function(next) {
+  // Skip password validation for Google auth users
+  if (this.isGoogleAuth && !this.isModified('password')) {
+    return next();
+  }
+  
+  // Regular password validation for non-Google users
+  if (!this.isGoogleAuth && (!this.password || this.password.length < 6)) {
+    throw new Error('Password must be at least 6 characters');
+  }
+  
+  next();
+});
 
 module.exports = mongoose.model("User", userSchema);

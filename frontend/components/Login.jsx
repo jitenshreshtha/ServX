@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useAuth } from "../src/context/Authcontext";
 import { useNavigate, Link, useLocation } from "react-router-dom";
+import GoogleAuthButton from './GoogleAuthButton';
+
 
 function Login() {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -146,6 +148,14 @@ function Login() {
               {loading ? "Logging in..." : "Login"}
             </button>
           </form>
+          <div className="d-flex align-items-center my-3">
+            <hr className="flex-grow-1" />
+            <span className="mx-2 text-muted">OR</span>
+            <hr className="flex-grow-1" />
+          </div>
+
+          <GoogleAuthButton className="w-100" />
+
 
           <div className="text-center mt-3">
             <span>Don't have an account? </span>
