@@ -60,9 +60,11 @@ module.exports = (server) => {
         // Emit message to both participants
         const room = `room_${[senderId, recipientId].sort().join("_")}`;
         io.to(room).emit("receive_private_message", {
-          ...data,
           _id: newMessage._id,
-          content: message, 
+          conversationId: conversation._id.toString(), 
+          senderId,
+          senderName: data.senderName,
+          content: message,
           timestamp: new Date().toISOString(),
         });
 
@@ -73,7 +75,6 @@ module.exports = (server) => {
           senderName: data.senderName,
           message: message,
         });
-
       } catch (err) {
         console.error("Error saving message:", err);
       }
@@ -82,12 +83,12 @@ module.exports = (server) => {
     socket.on("fetch_conversations", async (userId) => {
       try {
         const conversations = await Conversation.find({
-          participants: userId
+          participants: userId,
         })
-        .populate('participants', 'name email')
-        .populate('listing', 'title')
-        .populate('lastMessage')
-        .sort({ "lastMessage.createdAt": -1 });
+          .populate("participants", "name email")
+          .populate("listing", "title")
+          .populate("lastMessage")
+          .sort({ "lastMessage.createdAt": -1 });
 
         socket.emit("conversations_list", conversations);
       } catch (err) {
