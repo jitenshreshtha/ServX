@@ -14,6 +14,8 @@ import AboutUsPage from '../pages/AboutUsPage';
 import ContactUsPage from '../pages/ContactUsPage';
 import InboxPage from "../pages/InboxPage";
 import AuthCallback from '../components/AuthCallback'; 
+import EditListingPage from "../pages/EditListingPage";
+
 function App() {
   return (
     <AuthProvider>
@@ -28,6 +30,9 @@ function App() {
           <Route path="/create-listing" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
           <Route path="/admin-login" element={<AdminLoginPage />} />
           <Route path="/admin-dashboard" element={<ProtectedRoute adminOnly><AdminDashboardPage /></ProtectedRoute>} />
+          <Route path="/admin/edit-listing/:id" element={<ProtectedRoute adminOnly><EditListingPage mode="admin" /></ProtectedRoute>} />
+          <Route path="/edit-listing/:id" element={<ProtectedRoute><EditListingPage mode="user" /></ProtectedRoute>} />
+
           {/* Legacy route for backward compatibility */}
           <Route path="/create-post" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
           <Route path="/chat" element={<Chat />} />

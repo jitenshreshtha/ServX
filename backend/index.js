@@ -344,33 +344,105 @@ const authenticateAdmin = (req, res, next) => {
     next();
   });
 };
-// Admin Routes
+// ───── Admin: Read (R) ─────────────────────────────────────────────────
 app.get("/admin/dashboard", authenticateAdmin, (req, res) => {
   res.json({ message: "Welcome Admin!" });
 });
-// Admin can view all users
 app.get("/admin/users", authenticateAdmin, async (req, res, next) => {
   try {
     const users = await User.find().select("-password");
     res.json({ users });
-  } catch (error) {
-    next(error);
-  }
+  } catch (err) { next(err); }
 });
-// Admin can view all listings
 app.get("/admin/all-listings", authenticateAdmin, async (req, res, next) => {
   try {
     const listings = await Listing.find()
       .populate("author", "name email")
       .sort({ createdAt: -1 });
-
     res.json({ listings });
-  } catch (error) {
-    next(error);
+  } catch (err) { next(err); }
+});
+app.get("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) return res.status(404).json({ error: "Listing not found" });
+    res.json({ listing });
+  } catch (err) {
+    next(err);
   }
 });
 
-// Protected Routes
+// ───── Admin: Create (C) ───────────────────────────────────────────────
+app.post("/admin/listings", authenticateAdmin, async (req, res, next) => {
+  try {
+    const defaultAuthor = await User.findOne(); // get first user
+
+    if (!defaultAuthor) {
+      return res.status(400).json({ error: "No users found to assign as author" });
+    }
+
+    const listing = new Listing({
+      ...req.body,
+      author: defaultAuthor._id
+    });
+
+    await listing.save();
+    res.status(201).json({ listing });
+  } catch (err) {
+    next(err);
+  }
+});
+app.post("/admin/users", authenticateAdmin, async (req, res, next) => {
+  try {
+    const user = new User(req.body);
+    await user.save();
+    const safe = user.toObject(); delete safe.password;
+    res.status(201).json({ user: safe });
+  } catch (err) { next(err); }
+});
+
+// ───── Admin: Update (U) ───────────────────────────────────────────────
+// Validate ObjectId before update
+app.put("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: "Invalid listing ID" });
+  }
+  const listing = await Listing.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+    runValidators: true,
+  });
+  if (!listing) return res.status(404).json({ error: "Listing not found" });
+  res.json({ listing });
+});
+app.put("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    ).select("-password");
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ user });
+  } catch (err) { next(err); }
+});
+
+// ───── Admin: Delete (D) ───────────────────────────────────────────────
+// Validate ObjectId before delete
+app.delete("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ error: "Invalid listing ID" });
+  }
+  const listing = await Listing.findByIdAndDelete(req.params.id);
+  if (!listing) return res.status(404).json({ error: "Listing not found" });
+  res.json({ message: "Listing deleted" });
+});
+app.delete("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json({ message: "User deleted" });
+  } catch (err) { next(err); }
+})
 
 // Get current user profile
 app.get("/profile", authenticateToken, async (req, res, next) => {
