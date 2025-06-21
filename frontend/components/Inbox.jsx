@@ -13,20 +13,12 @@ const Inbox = () => {
   useEffect(() => {
     const fetchConversations = async () => {
       const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Not authenticated. Please log in.");
-        return;
-      }
+      if (!token || !currentUser) return;
 
       try {
         const res = await fetch("http://localhost:3000/conversations/user", {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        if (!res.ok) {
-          throw new Error("Failed to fetch conversations");
-        }
-
         const data = await res.json();
         setConversations(data);
       } catch (err) {
@@ -35,8 +27,53 @@ const Inbox = () => {
       }
     };
 
-    if (currentUser) fetchConversations();
+    fetchConversations();
   }, [currentUser]);
+
+  // Auto-start conversation if arriving from 'Contact' button
+  useEffect(() => {
+    const startNewConversation = async () => {
+      const token = localStorage.getItem("token");
+      const { recipient, listing } = location.state || {};
+
+      if (!recipient || !listing || !currentUser || !token) return;
+
+      try {
+        const query = new URLSearchParams({
+          user1: currentUser.id,
+          user2: recipient.id,
+          listing: listing.id,
+        });
+
+        const res = await fetch(`http://localhost:3000/conversations?${query.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const { conversation } = await res.json();
+
+        setSelectedConversation({
+          ...conversation,
+          participants: [
+            { _id: currentUser.id, name: currentUser.name },
+            { _id: recipient.id, name: recipient.name },
+          ],
+          listing,
+          messages: [], // messages will be loaded in Chat.jsx
+        });
+
+        // Reload all conversations to include the new one
+        const convRes = await fetch("http://localhost:3000/conversations/user", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const convs = await convRes.json();
+        setConversations(convs);
+      } catch (err) {
+        console.error("Failed to start conversation:", err);
+      }
+    };
+
+    startNewConversation();
+  }, [location.state, currentUser]);
 
   const getOtherParticipant = (participants) =>
     participants?.find((p) => p._id !== currentUser?.id);
