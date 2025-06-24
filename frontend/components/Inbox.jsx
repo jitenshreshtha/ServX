@@ -19,10 +19,25 @@ const Inbox = () => {
         const res = await fetch("http://localhost:3000/conversations/user", {
           headers: { Authorization: `Bearer ${token}` },
         });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          console.error("403 or other fetch error:", errData);
+          setError("Access denied. Please log in again.");
+          return;
+        }
+
         const data = await res.json();
+
+        if (!Array.isArray(data)) {
+          console.error("Invalid conversations response:", data);
+          setConversations([]);
+          return;
+        }
+
         setConversations(data);
       } catch (err) {
-        console.error(err);
+        console.error("Failed to fetch conversations:", err);
         setError("Failed to load conversations");
       }
     };
@@ -30,7 +45,6 @@ const Inbox = () => {
     fetchConversations();
   }, [currentUser]);
 
-  // Auto-start conversation if arriving from 'Contact' button
   useEffect(() => {
     const startNewConversation = async () => {
       const token = localStorage.getItem("token");
@@ -58,15 +72,19 @@ const Inbox = () => {
             { _id: recipient.id, name: recipient.name },
           ],
           listing,
-          messages: [], // messages will be loaded in Chat.jsx
+          messages: [],
         });
 
-        // Reload all conversations to include the new one
         const convRes = await fetch("http://localhost:3000/conversations/user", {
           headers: { Authorization: `Bearer ${token}` },
         });
+
         const convs = await convRes.json();
-        setConversations(convs);
+        if (Array.isArray(convs)) {
+          setConversations(convs);
+        } else {
+          console.error("Unexpected conversations format after starting:", convs);
+        }
       } catch (err) {
         console.error("Failed to start conversation:", err);
       }
@@ -87,7 +105,7 @@ const Inbox = () => {
         <div className="row">
           <div className="col-md-4">
             <div className="list-group">
-              {conversations.map((conv) => {
+              {Array.isArray(conversations) && conversations.map((conv) => {
                 const other = getOtherParticipant(conv.participants);
                 return (
                   <button
@@ -107,7 +125,7 @@ const Inbox = () => {
           </div>
 
           <div className="col-md-8">
-            {selectedConversation ? (
+            {selectedConversation && selectedConversation.listing ? (
               <Chat
                 currentUser={currentUser}
                 recipient={{

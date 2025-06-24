@@ -1,4 +1,3 @@
-// Chat.jsx — Enhanced Chat UI Design
 import React, { useState, useEffect } from "react";
 import socket from "../src/socket";
 
@@ -58,6 +57,11 @@ const Chat = ({ currentUser, recipient, listing, isModal = true, initialMessages
 
   const sendMessage = () => {
     if (!message.trim()) return;
+
+    if (!roomId || !currentUser?.id || !recipient?.id || !listing?.id) {
+      console.error("Missing required fields for sending message", { currentUser, recipient, listing });
+      return;
+    }
 
     const msgData = {
       room: roomId,

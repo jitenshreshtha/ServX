@@ -1,4 +1,4 @@
-// ✅ Updated CreateListing.jsx (Reusable for User & Admin)
+// ✅ FULL UPDATED CreateListing.jsx with location fields
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -23,27 +23,10 @@ function CreateListing({ mode = "user", onSuccess }) {
   const navigate = useNavigate();
 
   const categories = [
-    "Web Development",
-    "Mobile Development",
-    "Design",
-    "Writing",
-    "Marketing",
-    "Photography",
-    "Video Editing",
-    "Tutoring",
-    "Home Services",
-    "Crafts",
-    "Consulting",
-    "Other",
+    "Web Development", "Mobile Development", "Design", "Writing", "Marketing",
+    "Photography", "Video Editing", "Tutoring", "Home Services", "Crafts", "Consulting", "Other"
   ];
-
-  const durations = [
-    "1-3 hours",
-    "1 day",
-    "2-3 days",
-    "1 week",
-    "2+ weeks",
-  ];
+  const durations = ["1-3 hours", "1 day", "2-3 days", "1 week", "2+ weeks"];
 
   const validateForm = () => {
     const newErrors = {};
@@ -143,9 +126,7 @@ function CreateListing({ mode = "user", onSuccess }) {
         <label className="form-label">Category *</label>
         <select className={`form-select ${errors.category ? "is-invalid" : ""}`} name="category" value={formData.category} onChange={handleChange} required>
           <option value="">Select a category</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>{cat}</option>
-          ))}
+          {categories.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
         </select>
         {errors.category && <div className="invalid-feedback">{errors.category}</div>}
       </div>
@@ -166,15 +147,33 @@ function CreateListing({ mode = "user", onSuccess }) {
         <label className="form-label">Estimated Duration</label>
         <select className="form-select" name="estimatedDuration" value={formData.estimatedDuration} onChange={handleChange}>
           <option value="">Select duration</option>
-          {durations.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
+          {durations.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
       </div>
 
       <div className="mb-3">
         <label className="form-label">Tags</label>
         <input type="text" className="form-control" name="tags" value={formData.tags} onChange={handleChange} placeholder="e.g., remote, urgent" />
+      </div>
+
+      <h6 className="mt-4">Location</h6>
+      <div className="mb-3">
+        <label className="form-label">City</label>
+        <input type="text" className="form-control" name="location.city" value={formData.location.city} onChange={handleChange} />
+      </div>
+      <div className="mb-3">
+        <label className="form-label">State</label>
+        <input type="text" className="form-control" name="location.state" value={formData.location.state} onChange={handleChange} />
+      </div>
+      <div className="mb-3">
+        <label className="form-label">Country</label>
+        <input type="text" className="form-control" name="location.country" value={formData.location.country} onChange={handleChange} />
+      </div>
+      <div className="form-check mb-3">
+        <input className="form-check-input" type="checkbox" name="location.isRemote" id="remoteCheck" checked={formData.location.isRemote} onChange={handleChange} />
+        <label className="form-check-label" htmlFor="remoteCheck">
+          Remote Friendly
+        </label>
       </div>
 
       <div className="d-flex justify-content-end">
