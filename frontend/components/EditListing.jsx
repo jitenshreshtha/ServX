@@ -100,7 +100,7 @@ function EditListing({ mode = "user" }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update");
 
-      alert("Listing updated successfully!");
+      
       navigate(mode === "admin" ? "/admin-dashboard" : "/my-listings");
     } catch (err) {
       console.error("Update failed:", err);
@@ -113,6 +113,8 @@ function EditListing({ mode = "user" }) {
   return (
     <form onSubmit={handleSubmit}>
       <h3>Edit Listing</h3>
+      <button className="btn btn-secondary mb-3" onClick={() => navigate(mode === "admin" ? "/admin-dashboard" : "/my-listings")}>← Back to {mode === "admin" ? "Admin Dashboard" : "My Listings"}</button>
+
 
       <div className="mb-3">
         <label>Title</label>
@@ -153,6 +155,7 @@ function EditListing({ mode = "user" }) {
       <div className="d-flex justify-content-end">
         <button type="submit" className="btn btn-primary">Update</button>
       </div>
+      
     </form>
   );
 }

@@ -58,7 +58,7 @@ const EditUser = () => {
 
   return (
     <div className="container">
-      <button className="btn btn-secondary mb-3" onClick={() => navigate("/admin/users")}>← Back to User List</button>
+      <button className="btn btn-secondary mb-3" onClick={() => navigate("/admin-dashboard")}>← Back to Admin Dashboard</button>
       <form onSubmit={handleSubmit}>
         <h3>Edit User</h3>
         <div className="mb-3">

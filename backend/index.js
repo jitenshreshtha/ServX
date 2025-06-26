@@ -367,13 +367,16 @@ app.get("/admin/all-listings", authenticateAdmin, async (req, res, next) => {
 });
 app.get("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
   try {
-    const listing = await Listing.findById(req.params.id);
+    const listing = await Listing.findById(req.params.id)
+      .populate("author", "name email");
+
     if (!listing) return res.status(404).json({ error: "Listing not found" });
     res.json({ listing });
   } catch (err) {
     next(err);
   }
 });
+
 
 // ───── Admin: Create (C) ───────────────────────────────────────────────
 app.post("/admin/listings", authenticateAdmin, async (req, res, next) => {
@@ -441,11 +444,33 @@ app.delete("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
 });
 app.delete("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const userId = req.params.id;
+
+    // Delete Listings authored by the user
+    await Listing.deleteMany({ author: userId });
+
+    // Delete Projects involving the user
+    await Project.deleteMany({ 
+      $or: [{ requester: userId }, { provider: userId }] 
+    });
+
+    // Find Conversations involving the user
+    const conversations = await Conversation.find({ participants: userId });
+
+    // Delete all related Messages and Conversations
+    const conversationIds = conversations.map(conv => conv._id);
+    await Message.deleteMany({ conversation: { $in: conversationIds } });
+    await Conversation.deleteMany({ _id: { $in: conversationIds } });
+
+    // Delete the user
+    const user = await User.findByIdAndDelete(userId);
     if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ message: "User deleted" });
-  } catch (err) { next(err); }
-})
+
+    res.json({ message: "User and related data deleted" });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Get current user profile
 app.get("/profile", authenticateToken, async (req, res, next) => {

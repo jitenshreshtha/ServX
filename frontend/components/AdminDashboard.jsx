@@ -61,18 +61,22 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteUser = async (id) => {
-    const token = localStorage.getItem("adminToken");
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
-    try {
-      await fetch(`http://localhost:3000/admin/users/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setUsers(prev => prev.filter(u => u._id !== id));
-    } catch {
-      alert("Error deleting user");
-    }
-  };
+  const token = localStorage.getItem("adminToken");
+  if (!window.confirm("Are you sure you want to delete this user?")) return;
+  try {
+    await fetch(`http://localhost:3000/admin/users/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // Refresh both users and listings
+    setUsers(prev => prev.filter(u => u._id !== id));
+    fetchAllListings(token); // ⬅ Refresh listings
+  } catch {
+    alert("Error deleting user");
+  }
+};
+
 
   const uniqueCategories = [...new Set(listings.map(l => l.category))];
   const filteredListings = listings.filter(listing => {
@@ -139,6 +143,8 @@ const AdminDashboard = () => {
                         <p>{listing.description?.slice(0, 120)}...</p>
                         <p><strong>Category:</strong> {listing.category}</p>
                         <p><strong>Status:</strong> {listing.status}</p>
+                        <p><strong>Author:</strong> {listing.author?.name || "N/A"} ({listing.author?.email || "N/A"})</p>
+
                         <div className="d-flex justify-content-end gap-2">
                           <button className="btn btn-outline-primary btn-sm" onClick={() => navigate(`/admin/edit-listing/${listing._id}`)}>Edit</button>
                           <button className="btn btn-sm btn-danger" onClick={() => handleDeleteListing(listing._id)}>Delete</button>
