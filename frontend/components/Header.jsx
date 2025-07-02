@@ -152,6 +152,7 @@ function Header() {
                         <i className="bi bi-person me-2"></i>Profile
                       </Link>
                     </li>
+                    
                     {!isAdmin && (
                       <li>
                         <Link className="dropdown-item" to="/inbox">

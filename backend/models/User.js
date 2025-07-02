@@ -102,6 +102,30 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
+//Calculate and update user Rating
+userSchema.statics.updateUserRating = async function(userId) {
+  const Review = mongoose.model('Review');
+  
+  const result = await Review.aggregate([
+    { $match: { reviewee: new mongoose.Types.ObjectId(userId), status: 'active' } },
+    {
+      $group: {
+        _id: null,
+        averageRating: { $avg: '$rating' },
+        totalReviews: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  const rating = result.length > 0 ? {
+    average: Math.round(result[0].averageRating * 10) / 10, // Round to 1 decimal
+    count: result[0].totalReviews
+  } : { average: 0, count: 0 };
+  
+  await this.findByIdAndUpdate(userId, { rating });
+  return rating;
+};
+
 // Remove password from JSON output
 userSchema.methods.toJSON = function() {
   const userObject = this.toObject();

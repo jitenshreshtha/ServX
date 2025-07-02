@@ -1147,6 +1147,308 @@ app.get('/admin/contact-stats', authenticateAdmin, async (req, res) => {
   }
 });
 
+//Review Routes
+const Review = require("./models/Review");
+
+// Create a new review
+app.post("/reviews", authenticateToken, async (req, res, next) => {
+  try {
+    const { revieweeId, listingId, rating, title, comment } = req.body;
+    const reviewerId = req.user.userId;
+
+    // Validation
+    if (!revieweeId || !listingId || !rating || !title || !comment) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    if (rating < 1 || rating > 5) {
+      return res.status(400).json({ error: "Rating must be between 1 and 5" });
+    }
+
+    if (reviewerId === revieweeId) {
+      return res.status(400).json({ error: "You cannot review yourself" });
+    }
+
+    // Check if review already exists
+    const existingReview = await Review.findOne({
+      reviewer: reviewerId,
+      reviewee: revieweeId,
+      listing: listingId
+    });
+
+    if (existingReview) {
+      return res.status(400).json({ error: "You have already reviewed this user for this listing" });
+    }
+
+    // Verify the listing exists and user has interacted with it
+    const listing = await Listing.findById(listingId);
+    if (!listing) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+
+    // Create the review
+    const review = new Review({
+      reviewer: reviewerId,
+      reviewee: revieweeId,
+      listing: listingId,
+      rating: parseInt(rating),
+      title: title.trim(),
+      comment: comment.trim()
+    });
+
+    await review.save();
+
+    // Update reviewee's rating summary
+    await User.updateUserRating(revieweeId);
+
+    // Populate the review for response
+    await review.populate([
+      { path: 'reviewer', select: 'name email' },
+      { path: 'reviewee', select: 'name email' },
+      { path: 'listing', select: 'title' }
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: "Review submitted successfully",
+      review
+    });
+
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ error: "You have already reviewed this user for this listing" });
+    }
+    next(error);
+  }
+});
+
+// Get reviews for a specific user (received reviews)
+app.get("/reviews/user/:userId", async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(20, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    const [reviews, totalCount] = await Promise.all([
+      Review.find({ reviewee: userId, status: 'active' })
+        .populate('reviewer', 'name email')
+        .populate('listing', 'title')
+        .sort({ createdAt: -1 })
+        .limit(itemsPerPage)
+        .skip(skip),
+      Review.countDocuments({ reviewee: userId, status: 'active' })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    res.json({
+      success: true,
+      reviews,
+      pagination: {
+        current: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get reviews written by a user
+app.get("/reviews/by-user/:userId", authenticateToken, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    // Check if user is requesting their own reviews or is admin
+    if (req.user.userId !== userId && !req.user.isAdmin) {
+      return res.status(403).json({ error: "Not authorized to view these reviews" });
+    }
+
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(20, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const [reviews, totalCount] = await Promise.all([
+      Review.find({ reviewer: userId })
+        .populate('reviewee', 'name email')
+        .populate('listing', 'title')
+        .sort({ createdAt: -1 })
+        .limit(itemsPerPage)
+        .skip(skip),
+      Review.countDocuments({ reviewer: userId })
+    ]);
+
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    res.json({
+      success: true,
+      reviews,
+      pagination: {
+        current: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Add response to a review
+app.post("/reviews/:reviewId/response", authenticateToken, async (req, res, next) => {
+  try {
+    const { reviewId } = req.params;
+    const { comment } = req.body;
+    const userId = req.user.userId;
+
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ error: "Response comment is required" });
+    }
+
+    const review = await Review.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    // Only the reviewee can respond to their review
+    if (review.reviewee.toString() !== userId) {
+      return res.status(403).json({ error: "You can only respond to reviews about you" });
+    }
+
+    // Check if response already exists
+    if (review.response && review.response.comment) {
+      return res.status(400).json({ error: "You have already responded to this review" });
+    }
+
+    review.response = {
+      comment: comment.trim(),
+      respondedAt: new Date()
+    };
+
+    await review.save();
+
+    await review.populate([
+      { path: 'reviewer', select: 'name email' },
+      { path: 'reviewee', select: 'name email' },
+      { path: 'listing', select: 'title' }
+    ]);
+
+    res.json({
+      success: true,
+      message: "Response added successfully",
+      review
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get review statistics for a user
+app.get("/reviews/stats/:userId", async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    const stats = await Review.aggregate([
+      { $match: { reviewee: new mongoose.Types.ObjectId(userId), status: 'active' } },
+      {
+        $group: {
+          _id: '$rating',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: -1 } }
+    ]);
+
+    const totalReviews = await Review.countDocuments({ 
+      reviewee: userId, 
+      status: 'active' 
+    });
+
+    const averageRating = await Review.aggregate([
+      { $match: { reviewee: new mongoose.Types.ObjectId(userId), status: 'active' } },
+      {
+        $group: {
+          _id: null,
+          average: { $avg: '$rating' }
+        }
+      }
+    ]);
+
+    // Format rating distribution
+    const ratingDistribution = {};
+    for (let i = 1; i <= 5; i++) {
+      ratingDistribution[i] = 0;
+    }
+    stats.forEach(stat => {
+      ratingDistribution[stat._id] = stat.count;
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        totalReviews,
+        averageRating: averageRating.length > 0 ? 
+          Math.round(averageRating[0].average * 10) / 10 : 0,
+        ratingDistribution
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Check if user can review another user for a specific listing
+app.get("/reviews/can-review/:userId/:listingId", authenticateToken, async (req, res, next) => {
+  try {
+    const { userId: revieweeId, listingId } = req.params;
+    const reviewerId = req.user.userId;
+
+    // Check if review already exists
+    const existingReview = await Review.findOne({
+      reviewer: reviewerId,
+      reviewee: revieweeId,
+      listing: listingId
+    });
+
+    // Check if there's been an interaction (conversation exists)
+    const conversation = await Conversation.findOne({
+      participants: { $all: [reviewerId, revieweeId] },
+      listing: listingId
+    });
+
+    res.json({
+      success: true,
+      canReview: !existingReview && !!conversation,
+      hasExistingReview: !!existingReview,
+      hasInteraction: !!conversation
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Apply error handling middleware
 app.use(errorHandler);
 

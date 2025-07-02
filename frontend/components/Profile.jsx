@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import StarRating from './StarRating';
+import ReviewDisplay from './ReviewDisplay';
 
 function Profile() {
   const [user, setUser] = useState(null);
@@ -18,11 +20,19 @@ function Profile() {
     }
   });
   const [errors, setErrors] = useState({});
+  const [reviews, setReviews] = useState([]);
+  const [reviewStats, setReviewStats] = useState(null);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchUserProfile();
-  }, []);
+   
+    if (user?._id) {
+      fetchReviews();
+      fetchReviewStats();
+    }
+  }, [user?._id]);
 
   const fetchUserProfile = async () => {
     setLoading(true);
@@ -203,6 +213,30 @@ function Profile() {
       </div>
     );
   }
+
+  const fetchReviews = async () => {
+    try {
+      const response = await fetch(`http://localhost:3000/reviews/user/${user._id}?limit=3`);
+      if (response.ok) {
+        const data = await response.json();
+        setReviews(data.reviews);
+      }
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+    }
+  };
+
+  const fetchReviewStats = async () => {
+    try {
+      const response = await fetch(`http://localhost:3000/reviews/stats/${user._id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setReviewStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Error fetching review stats:', error);
+    }
+  };
 
   return (
     <div className="container mt-4" style={{ maxWidth: "800px" }}>
@@ -437,6 +471,114 @@ function Profile() {
                       <h6 className="text-muted">Member Since</h6>
                       <p>{formatDate(user.createdAt)}</p>
                     </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Reviews Section */}
+          <div className="card shadow mt-4">
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <h5 className="mb-0">
+                <i className="bi bi-star me-2"></i>
+                Reviews & Ratings
+              </h5>
+              {reviews.length > 3 && (
+                <button 
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => setShowAllReviews(true)}
+                >
+                  View All Reviews
+                </button>
+              )}
+            </div>
+            
+            <div className="card-body">
+              {reviewStats ? (
+                <>
+                  {/* Rating Summary */}
+                  <div className="row mb-4">
+                    <div className="col-md-6">
+                      <div className="text-center">
+                        <div className="display-5 fw-bold text-primary mb-2">
+                          {reviewStats.averageRating.toFixed(1)}
+                        </div>
+                        <StarRating 
+                          rating={reviewStats.averageRating} 
+                          readonly 
+                          size="large"
+                          showCount
+                          reviewCount={reviewStats.totalReviews}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="col-md-6">
+                      <h6 className="mb-3">Rating Breakdown</h6>
+                      {[5, 4, 3, 2, 1].map((rating) => {
+                        const count = reviewStats.ratingDistribution[rating] || 0;
+                        const percentage = reviewStats.totalReviews > 0 ? 
+                          (count / reviewStats.totalReviews) * 100 : 0;
+                        
+                        return (
+                          <div key={rating} className="d-flex align-items-center mb-1">
+                            <span className="me-2">{rating}</span>
+                            <i className="bi bi-star-fill text-warning me-2"></i>
+                            <div className="flex-grow-1 me-2">
+                              <div className="progress" style={{ height: '6px' }}>
+                                <div 
+                                  className="progress-bar bg-warning" 
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <small className="text-muted">{count}</small>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Recent Reviews */}
+                  {reviews.length > 0 ? (
+                    <div>
+                      <h6 className="mb-3">Recent Reviews</h6>
+                      {reviews.map((review) => (
+                        <ReviewDisplay
+                          key={review._id}
+                          review={review}
+                          showListingInfo={true}
+                          showResponseOption={true}
+                          currentUserId={user._id}
+                        />
+                      ))}
+                      
+                      {reviews.length >= 3 && reviewStats.totalReviews > 3 && (
+                        <div className="text-center mt-3">
+                          <button 
+                            className="btn btn-outline-primary"
+                            onClick={() => navigate(`/reviews/${user._id}`)}
+                          >
+                            View All {reviewStats.totalReviews} Reviews
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <i className="bi bi-star display-4 text-muted"></i>
+                      <h6 className="mt-3">No Reviews Yet</h6>
+                      <p className="text-muted">
+                        Complete some skill exchanges to start receiving reviews!
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading reviews...</span>
                   </div>
                 </div>
               )}

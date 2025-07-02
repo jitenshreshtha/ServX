@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import Pagination from "../components/Pagination";
+import StarRating from '../components/StarRating';
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from '../src/context/Authcontext';
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -304,10 +305,31 @@ function Homepage() {
                       </div>
 
                       <div className="d-flex justify-content-between align-items-center mb-2">
-                        <small className="text-muted">
-                          <i className="bi bi-person me-1"></i>
-                          By {listing.author?.name}
-                        </small>
+                        <div className="d-flex align-items-center">
+                          <img
+                            src="/profile.png"
+                            alt="Profile"
+                            className="rounded-circle me-2"
+                            style={{ width: '24px', height: '24px' }}
+                          />
+                          <div>
+                            <small className="text-muted">
+                              By {listing.author?.name}
+                            </small>
+                            {/* Add rating display */}
+                            {listing.author?.rating?.count > 0 && (
+                              <div className="mt-1">
+                                <StarRating 
+                                  rating={listing.author.rating.average} 
+                                  readonly 
+                                  size="small"
+                                  showCount
+                                  reviewCount={listing.author.rating.count}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
                         <small className="text-muted">
                           <i className="bi bi-calendar me-1"></i>
                           {formatDate(listing.createdAt)}
@@ -332,6 +354,27 @@ function Homepage() {
                             </span>
                           ))}
                         </div>
+                      )}
+                    </div>
+
+                    <div className="d-flex align-items-center mb-3">
+                      {listing.author?.rating?.average >= 4.5 && listing.author?.rating?.count >= 5 && (
+                        <span className="badge bg-success me-2">
+                          <i className="bi bi-shield-check me-1"></i>
+                          Highly Rated
+                        </span>
+                      )}
+                      {listing.author?.rating?.count >= 10 && (
+                        <span className="badge bg-info me-2">
+                          <i className="bi bi-award me-1"></i>
+                          Experienced
+                        </span>
+                      )}
+                      {listing.createdAt && new Date() - new Date(listing.createdAt) < 7 * 24 * 60 * 60 * 1000 && (
+                        <span className="badge bg-warning text-dark">
+                          <i className="bi bi-clock me-1"></i>
+                          New
+                        </span>
                       )}
                     </div>
                     
