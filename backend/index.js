@@ -7,7 +7,6 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const path = require('path');
 
-
 //chat module
 const setupSocketIO = require("./controllers/chatController");
 
@@ -31,7 +30,6 @@ app.use(
   })
 );
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
 
 // Database connection
 mongoose
@@ -83,6 +81,7 @@ const errorHandler = (err, req, res, next) => {
 };
 
 setupSocketIO(server);
+
 // Routes
 
 // Health check
@@ -94,12 +93,11 @@ app.get("/", (req, res) => {
   });
 });
 
-
 // Configure Passport Google OAuth
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`, // ✅ Send code to backend
+    callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`,
     passReqToCallback: true
   },
   async (req, accessToken, refreshToken, profile, done) => {
@@ -110,7 +108,7 @@ passport.use(new GoogleStrategy({
         user = new User({
           name: profile.displayName,
           email: profile.emails[0].value,
-          password: '', // Google users won't have passwords
+          password: '',
           isGoogleAuth: true,
           profileImage: profile.photos[0]?.value || '',
           isVerified: true
@@ -149,7 +147,6 @@ app.get('/auth/google/callback',
 
       console.log(`[Google Auth] User ${user.email} logged in successfully.`);
 
-      // ✅ Final redirect to frontend
       res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&userId=${user._id}&isNewUser=${isNewUser}`);
     } catch (error) {
       console.error("[Google Auth] Error during Google authentication:", error);
@@ -157,6 +154,7 @@ app.get('/auth/google/callback',
     }
   }
 );
+
 app.post("/signup", async (req, res, next) => {
   try {
     const { name, email, password, skills, bio, location, isGoogleAuth } = req.body;
@@ -192,7 +190,7 @@ app.post("/signup", async (req, res, next) => {
     };
 
     if (!isGoogleAuth) {
-      userData.password = password; // Save password only for non-Google users
+      userData.password = password;
     }
 
     const user = new User(userData);
@@ -222,7 +220,6 @@ app.post("/signup", async (req, res, next) => {
     next(error);
   }
 });
-
 
 app.post("/login", async (req, res, next) => {
   try {
@@ -273,6 +270,7 @@ app.post("/login", async (req, res, next) => {
     next(error);
   }
 });
+
 // Request otp Routes
 app.post("/admin/request-otp", async (req, res, next) => {
   try {
@@ -347,24 +345,157 @@ const authenticateAdmin = (req, res, next) => {
     next();
   });
 };
+
 // ───── Admin: Read (R) ─────────────────────────────────────────────────
 app.get("/admin/dashboard", authenticateAdmin, (req, res) => {
   res.json({ message: "Welcome Admin!" });
 });
+
+// Updated admin users route with pagination
 app.get("/admin/users", authenticateAdmin, async (req, res, next) => {
   try {
-    const users = await User.find().select("-password");
-    res.json({ users });
-  } catch (err) { next(err); }
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      role,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(50, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const filter = {};
+    
+    if (role && role !== 'all') filter.role = role;
+    
+    if (search && search.trim()) {
+      const searchTerm = new RegExp(search.trim(), 'i');
+      filter.$or = [
+        { name: searchTerm },
+        { email: searchTerm }
+      ];
+    }
+
+    const sortField = ['createdAt', 'name', 'email', 'role'].includes(sortBy) ? sortBy : 'createdAt';
+    const sort = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
+
+    const [users, totalCount] = await Promise.all([
+      User.find(filter)
+        .select("-password")
+        .sort(sort)
+        .limit(itemsPerPage)
+        .skip(skip)
+        .lean(),
+      User.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    res.json({
+      success: true,
+      users,
+      pagination: {
+        current: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1,
+        limit: itemsPerPage,
+        showing: {
+          start: totalCount === 0 ? 0 : skip + 1,
+          end: Math.min(skip + itemsPerPage, totalCount)
+        }
+      },
+      filters: {
+        search: search || null,
+        role: role || null,
+        sortBy: sortField,
+        sortOrder
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
 });
+
+// Updated admin all listings route with pagination
 app.get("/admin/all-listings", authenticateAdmin, async (req, res, next) => {
   try {
-    const listings = await Listing.find()
-      .populate("author", "name email")
-      .sort({ createdAt: -1 });
-    res.json({ listings });
-  } catch (err) { next(err); }
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      category,
+      search,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(50, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const filter = {};
+
+    if (status && status !== 'all') filter.status = status;
+    if (category && category !== 'all') filter.category = category;
+    
+    if (search && search.trim()) {
+      const searchTerm = new RegExp(search.trim(), 'i');
+      filter.$or = [
+        { title: searchTerm },
+        { description: searchTerm },
+        { skillOffered: searchTerm },
+        { skillWanted: searchTerm }
+      ];
+    }
+
+    const sortField = ['createdAt', 'title', 'status', 'views'].includes(sortBy) ? sortBy : 'createdAt';
+    const sort = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
+
+    const [listings, totalCount] = await Promise.all([
+      Listing.find(filter)
+        .populate("author", "name email")
+        .sort(sort)
+        .limit(itemsPerPage)
+        .skip(skip)
+        .lean(),
+      Listing.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    res.json({
+      success: true,
+      listings,
+      pagination: {
+        current: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1,
+        limit: itemsPerPage,
+        showing: {
+          start: totalCount === 0 ? 0 : skip + 1,
+          end: Math.min(skip + itemsPerPage, totalCount)
+        }
+      },
+      filters: {
+        status: status || null,
+        category: category || null,
+        search: search || null,
+        sortBy: sortField,
+        sortOrder
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
 });
+
 app.get("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
   try {
     const listing = await Listing.findById(req.params.id)
@@ -377,11 +508,10 @@ app.get("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
   }
 });
 
-
 // ───── Admin: Create (C) ───────────────────────────────────────────────
 app.post("/admin/listings", authenticateAdmin, async (req, res, next) => {
   try {
-    const defaultAuthor = await User.findOne(); // get first user
+    const defaultAuthor = await User.findOne();
 
     if (!defaultAuthor) {
       return res.status(400).json({ error: "No users found to assign as author" });
@@ -398,28 +528,35 @@ app.post("/admin/listings", authenticateAdmin, async (req, res, next) => {
     next(err);
   }
 });
+
 app.post("/admin/users", authenticateAdmin, async (req, res, next) => {
   try {
     const user = new User(req.body);
     await user.save();
     const safe = user.toObject(); delete safe.password;
     res.status(201).json({ user: safe });
-  } catch (err) { next(err); }
+  } catch (err) { 
+    next(err); 
+  }
 });
 
 // ───── Admin: Update (U) ───────────────────────────────────────────────
-// Validate ObjectId before update
 app.put("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ error: "Invalid listing ID" });
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid listing ID" });
+    }
+    const listing = await Listing.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+    if (!listing) return res.status(404).json({ error: "Listing not found" });
+    res.json({ listing });
+  } catch (err) {
+    next(err);
   }
-  const listing = await Listing.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true,
-  });
-  if (!listing) return res.status(404).json({ error: "Listing not found" });
-  res.json({ listing });
 });
+
 app.put("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
   try {
     const user = await User.findByIdAndUpdate(
@@ -429,19 +566,25 @@ app.put("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
     ).select("-password");
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json({ user });
-  } catch (err) { next(err); }
+  } catch (err) { 
+    next(err); 
+  }
 });
 
 // ───── Admin: Delete (D) ───────────────────────────────────────────────
-// Validate ObjectId before delete
 app.delete("/admin/listings/:id", authenticateAdmin, async (req, res, next) => {
-  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-    return res.status(400).json({ error: "Invalid listing ID" });
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid listing ID" });
+    }
+    const listing = await Listing.findByIdAndDelete(req.params.id);
+    if (!listing) return res.status(404).json({ error: "Listing not found" });
+    res.json({ message: "Listing deleted" });
+  } catch (err) {
+    next(err);
   }
-  const listing = await Listing.findByIdAndDelete(req.params.id);
-  if (!listing) return res.status(404).json({ error: "Listing not found" });
-  res.json({ message: "Listing deleted" });
 });
+
 app.delete("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
   try {
     const userId = req.params.id;
@@ -629,17 +772,125 @@ app.get("/listings", async (req, res, next) => {
   }
 });
 
-
-
-// Get user's own listings
 app.get("/my-listings", authenticateToken, async (req, res, next) => {
   try {
-    const listings = await Listing.find({ author: req.user.userId })
-      .populate("author", "name email skills rating")
-      .sort({ createdAt: -1 });
+    console.log("🔍 [MyListings Debug] Request received");
+    console.log("🔍 [MyListings Debug] User from token:", req.user);
+    console.log("🔍 [MyListings Debug] User ID:", req.user.userId);
+    
+    const {
+      page = 1,
+      limit = 6,
+      status,
+      category,
+      search,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
 
-    res.json({ listings });
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(48, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const filter = { author: req.user.userId };
+    console.log("🔍 [MyListings Debug] Base filter:", filter);
+
+    // Add filters
+    if (status && status !== 'all') filter.status = status;
+    if (category && category !== 'all') filter.category = category;
+    
+    if (search && search.trim()) {
+      const searchTerm = new RegExp(search.trim(), 'i');
+      filter.$or = [
+        { title: searchTerm },
+        { description: searchTerm },
+        { skillOffered: searchTerm },
+        { skillWanted: searchTerm },
+        { tags: { $in: [searchTerm] } }
+      ];
+    }
+
+    console.log("🔍 [MyListings Debug] Final filter:", JSON.stringify(filter, null, 2));
+
+    const sortField = ['createdAt', 'title', 'status', 'views'].includes(sortBy) ? sortBy : 'createdAt';
+    const sort = { [sortField]: sortOrder === 'asc' ? 1 : -1 };
+
+    // Check total listings for this user first
+    const totalUserListings = await Listing.countDocuments({ author: req.user.userId });
+    console.log("🔍 [MyListings Debug] Total listings for user:", totalUserListings);
+
+    // Check if any listings exist at all and what their author IDs look like
+    if (totalUserListings === 0) {
+      const sampleListings = await Listing.find({}).select('author title').populate('author', 'name email').limit(5);
+      console.log("🔍 [MyListings Debug] Sample listings with authors:", 
+        sampleListings.map(l => ({
+          title: l.title,
+          authorId: l.author?._id?.toString(),
+          authorName: l.author?.name,
+          authorEmail: l.author?.email
+        }))
+      );
+      
+      console.log("🔍 [MyListings Debug] Current user ID type:", typeof req.user.userId);
+      console.log("🔍 [MyListings Debug] Current user ID value:", req.user.userId);
+    }
+
+    const [listings, totalCount] = await Promise.all([
+      Listing.find(filter)
+        .populate("author", "name email skills rating")
+        .sort(sort)
+        .limit(itemsPerPage)
+        .skip(skip)
+        .lean(),
+      Listing.countDocuments(filter)
+    ]);
+
+    console.log("🔍 [MyListings Debug] Found listings count:", listings.length);
+    console.log("🔍 [MyListings Debug] Total count:", totalCount);
+
+    if (listings.length > 0) {
+      console.log("🔍 [MyListings Debug] First listing:", {
+        title: listings[0].title,
+        authorId: listings[0].author?._id?.toString(),
+        authorName: listings[0].author?.name
+      });
+    }
+
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    // Return the response in the expected format
+    res.json({
+      // Keep backward compatibility
+      listings,
+      // Add pagination info
+      pagination: {
+        current: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1,
+        limit: itemsPerPage,
+        showing: {
+          start: totalCount === 0 ? 0 : skip + 1,
+          end: Math.min(skip + itemsPerPage, totalCount)
+        }
+      },
+      filters: {
+        status: status || null,
+        category: category || null,
+        search: search || null,
+        sortBy: sortField,
+        sortOrder
+      },
+      debug: {
+        userId: req.user.userId,
+        userIdType: typeof req.user.userId,
+        totalUserListings,
+        filterUsed: filter
+      }
+    });
   } catch (error) {
+    console.error("❌ [MyListings Debug] Error:", error);
     next(error);
   }
 });
@@ -657,7 +908,6 @@ app.get("/messages", authenticateToken, async (req, res) => {
   }
 });
 
-// Add this to your routes section
 app.get("/conversations", authenticateToken, async (req, res) => {
   try {
     const { user1, user2, listing } = req.query;
@@ -685,7 +935,6 @@ app.get("/conversations", authenticateToken, async (req, res) => {
 
 app.get("/conversations/user", authenticateToken, async (req, res) => {
   try {
-    // Correct: Access userId directly from req.user (JWT payload)
     const userId = req.user.userId;
 
     const conversations = await Conversation.find({
@@ -728,6 +977,176 @@ app.get(
   }
 );
 
+const { sendContactEmail, sendContactAutoReply } = require('./utils/contactEmailService');
+
+// Contact form submission route
+app.post('/contact', async (req, res, next) => {
+  try {
+    const { name, email, message, subject } = req.body;
+    
+    // Validation
+    if (!name || !email || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name, email, and message are required'
+      });
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide a valid email address'
+      });
+    }
+    
+    // Sanitize inputs
+    const sanitizedData = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      message: message.trim(),
+      subject: subject ? subject.trim() : 'General Inquiry'
+    };
+    
+    // Additional validation
+    if (sanitizedData.name.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name must be at least 2 characters long'
+      });
+    }
+    
+    if (sanitizedData.message.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: 'Message must be at least 10 characters long'
+      });
+    }
+    
+    console.log('📧 Processing contact form submission:', {
+      name: sanitizedData.name,
+      email: sanitizedData.email,
+      subject: sanitizedData.subject,
+      messageLength: sanitizedData.message.length
+    });
+    
+    // Send email to admin using SendGrid
+    await sendContactEmail(sanitizedData);
+    
+    // Send auto-reply to user (optional, but recommended)
+    try {
+      await sendContactAutoReply(
+        sanitizedData.email, 
+        sanitizedData.name, 
+        sanitizedData.subject
+      );
+    } catch (autoReplyError) {
+      console.log('⚠️ Auto-reply failed but continuing:', autoReplyError.message);
+      // Don't fail the whole request if auto-reply fails
+    }
+    
+    console.log('✅ Contact form processed successfully');
+    
+    res.json({
+      success: true,
+      message: 'Thank you for your message! We\'ll get back to you within 24-48 hours.'
+    });
+    
+  } catch (error) {
+    console.error('❌ Contact form error:', error);
+    
+    // Check if it's a SendGrid specific error
+    let errorMessage = 'Unable to send message at this time. Please try again later.';
+    
+    if (error.message && error.message.includes('SendGrid')) {
+      console.error('SendGrid API Error Details:', error);
+      errorMessage = 'Email service temporarily unavailable. Please try again in a few minutes.';
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: errorMessage
+    });
+  }
+});
+
+// Test contact email functionality (admin only)
+app.post('/admin/test-contact-email', authenticateAdmin, async (req, res) => {
+  try {
+    const testData = {
+      name: 'Test User',
+      email: process.env.ADMIN_EMAIL,
+      message: 'This is a test message to verify the contact form email functionality using SendGrid.',
+      subject: 'Contact Form Test'
+    };
+    
+    console.log('🧪 Testing contact email functionality...');
+    
+    // Send test email
+    const result = await sendContactEmail(testData);
+    
+    // Send test auto-reply
+    await sendContactAutoReply(testData.email, testData.name, testData.subject);
+    
+    res.json({
+      success: true,
+      message: 'Test emails sent successfully!',
+      messageId: result.messageId
+    });
+    
+  } catch (error) {
+    console.error('❌ Test contact email failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Contact email test failed',
+      details: error.message
+    });
+  }
+});
+
+// Get contact email service status (admin only)
+app.get('/admin/contact-email-status', authenticateAdmin, (req, res) => {
+  const requiredEnvVars = [
+    'SENDGRID_API_KEY',
+    'ADMIN_EMAIL'
+  ];
+  
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  
+  const status = {
+    service: 'SendGrid',
+    configured: missingVars.length === 0,
+    missingVariables: missingVars,
+    sendgridApiKey: process.env.SENDGRID_API_KEY ? '✓ Configured' : '✗ Missing',
+    adminEmail: process.env.ADMIN_EMAIL ? '✓ Configured' : '✗ Missing',
+    frontendUrl: process.env.FRONTEND_URL ? '✓ Configured' : '⚠️ Using default'
+  };
+  
+  res.json(status);
+});
+
+// Contact form analytics (admin only) - optional
+app.get('/admin/contact-stats', authenticateAdmin, async (req, res) => {
+  try {
+    // If you want to track contact submissions, you could store them in database
+    // For now, just return a simple response
+    res.json({
+      success: true,
+      message: 'Contact form is using SendGrid email service',
+      service: 'SendGrid',
+      features: [
+        'Professional HTML emails',
+        'Auto-reply confirmations',
+        'Email delivery tracking',
+        'Reply-to functionality'
+      ]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Apply error handling middleware
 app.use(errorHandler);
 
@@ -740,4 +1159,3 @@ const PORT = process.env.BACK_PORT || 3000;
 server.listen(PORT, () => {
   console.log(` Server running on http://localhost:${PORT}`);
 });
-

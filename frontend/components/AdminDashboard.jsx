@@ -13,6 +13,25 @@ const AdminDashboard = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState('listings');
 
+  // Listings pagination state
+  const [listingsPage, setListingsPage] = useState(1);
+  const [listingsTotalPages, setListingsTotalPages] = useState(1);
+  const [listingsPagination, setListingsPagination] = useState(null);
+  const [listingsFilter, setListingsFilter] = useState({
+    status: 'all',
+    category: 'all',
+    search: ''
+  });
+  
+  // Users pagination state
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersTotalPages, setUsersTotalPages] = useState(1);
+  const [usersPagination, setUsersPagination] = useState(null);
+  const [usersFilter, setUsersFilter] = useState({
+    role: 'all',
+    search: ''
+  });
+
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) return navigate('/admin-login');

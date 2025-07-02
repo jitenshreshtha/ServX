@@ -13,10 +13,13 @@ function Homepage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalListings, setTotalListings] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(6);
+  const [itemsPerPage] = useState(6);
+  const [pagination, setPagination] = useState(null);
   const [filters, setFilters] = useState({
     skillWanted: "",
-    locationQuery: ""
+    locationQuery: "",
+    category: "",
+    search: ""
   });
 
   const { currentUser } = useAuth();
@@ -24,7 +27,7 @@ function Homepage() {
 
   useEffect(() => {
     fetchListings();
-  }, [currentPage]);
+  }, [currentPage, filters]);
 
   const checkLoginStatus = () => {
     const token = localStorage.getItem('token');
@@ -47,12 +50,25 @@ function Homepage() {
       if (filters.skillWanted) queryParams.append("skillWanted", filters.skillWanted);
       if (filters.locationQuery) queryParams.append("location", filters.locationQuery);
 
+      // Add filters
+      if (filters.skillWanted) queryParams.append("skillWanted", filters.skillWanted);
+      if (filters.locationQuery) queryParams.append("location", filters.locationQuery);
+      if (filters.category && filters.category !== 'all') queryParams.append("category", filters.category);
+      if (filters.search) queryParams.append("search", filters.search);
+
       const response = await fetch(`http://localhost:3000/listings?${queryParams}`);
       const data = await response.json();
 
-      setListings(data.listings || []);
-      setTotalPages(data.pagination?.pages || 1);
-      setTotalListings(data.pagination?.total || 0);
+      if (data.success) {
+        setListings(data.listings || []);
+        setPagination(data.pagination);
+        setTotalPages(data.pagination?.pages || 1);
+        setTotalListings(data.pagination?.total || 0);
+      } else {
+        setListings([]);
+        setTotalPages(1);
+        setTotalListings(0);
+      }
     } catch (error) {
       console.error("Error fetching listings:", error);
       setListings([]);
@@ -66,6 +82,26 @@ function Homepage() {
   const handleSearch = () => {
     setCurrentPage(1);
     fetchListings();
+  };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+    setCurrentPage(1);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      skillWanted: "",
+      locationQuery: "",
+      category: "",
+      search: ""
+    });
+    setCurrentPage(1);
   };
 
   const handleContactClick = (listing) => {
@@ -88,9 +124,24 @@ function Homepage() {
     });
   };
 
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const categories = [
+    "Web Development", "Mobile Development", "Design", "Writing", "Marketing",
+    "Photography", "Video Editing", "Tutoring", "Home Services", "Crafts", "Consulting", "Other"
+  ];
+
   return (
     <div>
       <Header />
+      
+      {/* Hero Section */}
       <div className="bg-primary text-white py-5">
         <div className="container text-center">
           <h1 className="display-4 fw-bold mb-3">Welcome to ServX</h1>
@@ -117,66 +168,209 @@ function Homepage() {
         </div>
       </div>
 
-      {/* Search UI */}
+      {/* Search and Filters Section */}
       <div className="container mt-4 mb-3">
-        <div className="row g-2">
-          <div className="col-md-5">
-            <input type="text" className="form-control" placeholder="Skill Wanted"
-              value={filters.skillWanted}
-              onChange={(e) => setFilters({ ...filters, skillWanted: e.target.value })}
-            />
-          </div>
-          <div className="col-md-5">
-            <input type="text" className="form-control" placeholder="Location"
-              value={filters.locationQuery}
-              onChange={(e) => setFilters({ ...filters, locationQuery: e.target.value })}
-            />
-          </div>
-          <div className="col-md-2">
-            <button className="btn btn-primary w-100" onClick={handleSearch}>Search</button>
+        <div className="card">
+          <div className="card-body">
+            <h5 className="card-title mb-3">Find Skills</h5>
+            
+            {/* Search Row */}
+            <div className="row g-2 mb-3">
+              <div className="col-md-3">
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Search listings..."
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                />
+              </div>
+              <div className="col-md-3">
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Skill Wanted"
+                  value={filters.skillWanted}
+                  onChange={(e) => setFilters({ ...filters, skillWanted: e.target.value })}
+                />
+              </div>
+              <div className="col-md-3">
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="Location"
+                  value={filters.locationQuery}
+                  onChange={(e) => setFilters({ ...filters, locationQuery: e.target.value })}
+                />
+              </div>
+              <div className="col-md-3">
+                <select 
+                  className="form-select" 
+                  value={filters.category}
+                  onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                >
+                  <option value="">All Categories</option>
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="d-flex gap-2">
+              <button className="btn btn-primary" onClick={handleSearch}>
+                <i className="bi bi-search me-2"></i>Search
+              </button>
+              <button className="btn btn-outline-secondary" onClick={clearFilters}>
+                <i className="bi bi-x-circle me-2"></i>Clear Filters
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Results Section */}
       <div className="container my-5">
-        <h3>Skill Exchange Listings</h3>
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <h3>Skill Exchange Listings</h3>
+            {pagination && (
+              <p className="text-muted mb-0">
+                Showing {pagination.showing.start}-{pagination.showing.end} of {pagination.total} listings
+              </p>
+            )}
+          </div>
+          
+          {totalListings > 0 && (
+            <div className="d-flex align-items-center gap-3">
+              <span className="text-muted">Page {currentPage} of {totalPages}</span>
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div className="text-center py-5">
-            <div className="spinner-border text-primary" role="status" />
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-3">Loading listings...</p>
+          </div>
+        ) : listings.length === 0 ? (
+          <div className="text-center py-5">
+            <i className="bi bi-search display-1 text-muted"></i>
+            <h4 className="mt-3">No listings found</h4>
+            <p className="text-muted">
+              {Object.values(filters).some(filter => filter) 
+                ? "Try adjusting your search criteria or clear filters to see all listings."
+                : "Be the first to create a listing!"
+              }
+            </p>
+            {!Object.values(filters).some(filter => filter) && loggedIn && (
+              <button 
+                className="btn btn-primary mt-3"
+                onClick={() => navigate('/create-listing')}
+              >
+                <i className="bi bi-plus-circle me-2"></i>Create First Listing
+              </button>
+            )}
           </div>
         ) : (
-          <div className="row">
-            {listings.map((listing) => (
-              <div className="col-lg-6 mb-4" key={listing._id}>
-                <div className="card h-100 shadow-sm">
-                  <div className="card-body">
-                    <h5 className="card-title">{listing.title}</h5>
-                    <p className="text-muted">{listing.description?.slice(0, 100)}...</p>
-                    <small className="text-muted">By {listing.author?.name}</small>
-                  </div>
-                  <div className="card-footer bg-transparent">
-                    {loggedIn ? (
-                      <button className="btn btn-primary btn-sm w-100" onClick={() => handleContactClick(listing)}>
-                        <i className="bi bi-chat-dots me-2"></i>Contact
-                      </button>
-                    ) : (
-                      <button
-                        className="btn btn-outline-primary btn-sm w-100"
-                        onClick={() => {
-                          alert('Please login to contact the author!');
-                          navigate('/login');
-                        }}
-                      >
-                        <i className="bi bi-box-arrow-in-right me-2"></i>Login to Contact
-                      </button>
-                    )}
+          <>
+            <div className="row">
+              {listings.map((listing) => (
+                <div className="col-lg-6 mb-4" key={listing._id}>
+                  <div className="card h-100 shadow-sm">
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-start mb-2">
+                        <h5 className="card-title">{listing.title}</h5>
+                        <span className="badge bg-primary">{listing.category}</span>
+                      </div>
+                      
+                      <p className="text-muted mb-3">
+                        {listing.description?.slice(0, 120)}
+                        {listing.description?.length > 120 ? '...' : ''}
+                      </p>
+                      
+                      <div className="row mb-3">
+                        <div className="col-6">
+                          <small className="text-muted">Offering:</small>
+                          <div className="fw-bold text-success">{listing.skillOffered}</div>
+                        </div>
+                        <div className="col-6">
+                          <small className="text-muted">Seeking:</small>
+                          <div className="fw-bold text-primary">{listing.skillWanted}</div>
+                        </div>
+                      </div>
+
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <small className="text-muted">
+                          <i className="bi bi-person me-1"></i>
+                          By {listing.author?.name}
+                        </small>
+                        <small className="text-muted">
+                          <i className="bi bi-calendar me-1"></i>
+                          {formatDate(listing.createdAt)}
+                        </small>
+                      </div>
+
+                      {listing.location && (
+                        <div className="mb-2">
+                          <small className="text-muted">
+                            <i className="bi bi-geo-alt me-1"></i>
+                            {[listing.location.city, listing.location.state, listing.location.country]
+                              .filter(Boolean).join(', ') || 'Location not specified'}
+                          </small>
+                        </div>
+                      )}
+
+                      {listing.tags && listing.tags.length > 0 && (
+                        <div className="mb-3">
+                          {listing.tags.slice(0, 3).map((tag, index) => (
+                            <span key={index} className="badge bg-secondary me-1 mb-1">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="card-footer bg-transparent">
+                      {loggedIn ? (
+                        <button 
+                          className="btn btn-primary w-100" 
+                          onClick={() => handleContactClick(listing)}
+                        >
+                          <i className="bi bi-chat-dots me-2"></i>Contact
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-outline-primary w-100"
+                          onClick={() => {
+                            alert('Please login to contact the author!');
+                            navigate('/login');
+                          }}
+                        >
+                          <i className="bi bi-box-arrow-in-right me-2"></i>Login to Contact
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            {/* Pagination Component */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              loading={loading}
+            />
+          </>
         )}
       </div>
+      
       <Footer />
     </div>
   );

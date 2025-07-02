@@ -1,6 +1,6 @@
 import React from 'react';
 
-function Pagination({ currentPage, totalPages, onPageChange, loading = false }) {
+function Pagination({ currentPage, totalPages, onPageChange, loading = false, showInfo = true }) {
   // Don't show pagination if there's only one page or less
   if (totalPages <= 1) return null;
 
@@ -43,9 +43,22 @@ function Pagination({ currentPage, totalPages, onPageChange, loading = false }) 
   const pageNumbers = getPageNumbers();
 
   return (
-    <div className="d-flex justify-content-center align-items-center mt-4">
-      <nav aria-label="Listings pagination">
+    <div className="d-flex justify-content-center align-items-center mt-4 mb-3">
+      <nav aria-label="Pagination navigation">
         <ul className="pagination mb-0">
+          {/* First Page Button */}
+          <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+            <button
+              className="page-link"
+              onClick={() => onPageChange(1)}
+              disabled={currentPage === 1 || loading}
+              aria-label="Go to first page"
+              title="First page"
+            >
+              <i className="bi bi-chevron-double-left"></i>
+            </button>
+          </li>
+
           {/* Previous Button */}
           <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
             <button
@@ -53,6 +66,7 @@ function Pagination({ currentPage, totalPages, onPageChange, loading = false }) 
               onClick={() => onPageChange(currentPage - 1)}
               disabled={currentPage === 1 || loading}
               aria-label="Previous page"
+              title="Previous page"
             >
               <i className="bi bi-chevron-left"></i>
             </button>
@@ -68,6 +82,8 @@ function Pagination({ currentPage, totalPages, onPageChange, loading = false }) 
                   className="page-link"
                   onClick={() => onPageChange(pageNum)}
                   disabled={loading}
+                  aria-label={`Go to page ${pageNum}`}
+                  aria-current={pageNum === currentPage ? 'page' : undefined}
                 >
                   {pageNum}
                 </button>
@@ -82,19 +98,42 @@ function Pagination({ currentPage, totalPages, onPageChange, loading = false }) 
               onClick={() => onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages || loading}
               aria-label="Next page"
+              title="Next page"
             >
               <i className="bi bi-chevron-right"></i>
+            </button>
+          </li>
+
+          {/* Last Page Button */}
+          <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+            <button
+              className="page-link"
+              onClick={() => onPageChange(totalPages)}
+              disabled={currentPage === totalPages || loading}
+              aria-label="Go to last page"
+              title="Last page"
+            >
+              <i className="bi bi-chevron-double-right"></i>
             </button>
           </li>
         </ul>
       </nav>
 
       {/* Page Info */}
-      <div className="ms-3 text-muted">
-        <small>
-          Page {currentPage} of {totalPages}
-        </small>
-      </div>
+      {showInfo && (
+        <div className="ms-3 text-muted">
+          <small>
+            Page {currentPage} of {totalPages}
+            {loading && (
+              <span className="ms-2">
+                <div className="spinner-border spinner-border-sm" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </span>
+            )}
+          </small>
+        </div>
+      )}
     </div>
   );
 }
