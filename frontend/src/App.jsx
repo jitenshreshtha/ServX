@@ -16,6 +16,7 @@ import InboxPage from "../pages/InboxPage";
 import AuthCallback from '../components/AuthCallback';
 import EditListingPage from "../pages/EditListingPage";
 import UserReviews from '../components/UserReviews';
+import AdminReportedMessagesPage from "../pages/AdminReportedMessagesPage";
 
 import EditUserPage from "../pages/EditUserPage";
 
@@ -38,6 +39,7 @@ function App() {
           <Route path="/edit-listing/:id" element={<ProtectedRoute><EditListingPage mode="user" /></ProtectedRoute>} />
 
           <Route path="/admin/edit-user/:id" element={<ProtectedRoute adminOnly><EditUserPage /></ProtectedRoute>} />
+          <Route path="/admin/reported-messages" element={<ProtectedRoute adminOnly><AdminReportedMessagesPage /></ProtectedRoute>} />
 
           {/* Legacy route for backward compatibility */}
           <Route path="/create-post" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />

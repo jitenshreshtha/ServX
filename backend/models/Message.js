@@ -22,6 +22,13 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
     readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    reports: [
+      {
+        reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        reason: { type: String },
+        reportedAt: { type: Date, default: Date.now },
+      },
+    ]
   },
   { timestamps: true }
 );

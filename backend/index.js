@@ -979,6 +979,47 @@ app.get(
 
 const { sendContactEmail, sendContactAutoReply } = require('./utils/contactEmailService');
 
+app.post("/messages/:id/report", authenticateToken, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const message = await Message.findById(id);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+
+    // Prevent duplicate reports by same user
+    const alreadyReported = message.reports?.some(
+      r => r.reportedBy.toString() === req.user.userId
+    );
+    if (alreadyReported) {
+      return res.status(400).json({ error: "You already reported this message" });
+    }
+
+    message.reports.push({
+      reportedBy: req.user.userId,
+      reason,
+    });
+
+    await message.save();
+    res.json({ success: true, message: "Message reported to admin" });
+  } catch (error) {
+    next(error);
+  }
+});
+app.get("/admin/reported-messages", authenticateAdmin, async (req, res, next) => {
+  try {
+    const reported = await Message.find({ "reports.0": { $exists: true } })
+      .populate("sender", "name email")
+      .populate("reports.reportedBy", "name email")
+      .populate("conversation", "listing participants")
+      .sort({ updatedAt: -1 });
+
+    res.json({ reported });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Contact form submission route
 app.post('/contact', async (req, res, next) => {
   try {

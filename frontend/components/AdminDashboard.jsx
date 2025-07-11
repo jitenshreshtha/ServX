@@ -1,4 +1,3 @@
-// ✅ AdminDashboard with Users merged
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CreateListing from './CreateListing';
@@ -8,36 +7,19 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [listings, setListings] = useState([]);
   const [users, setUsers] = useState([]);
+  const [reports, setReports] = useState([]);
   const [filter, setFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState('listings');
-
-  // Listings pagination state
-  const [listingsPage, setListingsPage] = useState(1);
-  const [listingsTotalPages, setListingsTotalPages] = useState(1);
-  const [listingsPagination, setListingsPagination] = useState(null);
-  const [listingsFilter, setListingsFilter] = useState({
-    status: 'all',
-    category: 'all',
-    search: ''
-  });
-  
-  // Users pagination state
-  const [usersPage, setUsersPage] = useState(1);
-  const [usersTotalPages, setUsersTotalPages] = useState(1);
-  const [usersPagination, setUsersPagination] = useState(null);
-  const [usersFilter, setUsersFilter] = useState({
-    role: 'all',
-    search: ''
-  });
 
   useEffect(() => {
     const token = localStorage.getItem('adminToken');
     if (!token) return navigate('/admin-login');
     fetchAllListings(token);
     fetchAllUsers(token);
-  }, [navigate]);
+    if (activeTab === 'reports') fetchReports(token);
+  }, [navigate, activeTab]);
 
   const fetchAllListings = async (token) => {
     try {
@@ -65,6 +47,18 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchReports = async (token) => {
+    try {
+      const res = await fetch('http://localhost:3000/admin/reported-messages', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setReports(data);
+    } catch (err) {
+      alert('Failed to load reports');
+    }
+  };
+
   const handleDeleteListing = async (id) => {
     const token = localStorage.getItem("adminToken");
     if (!window.confirm("Are you sure you want to delete this listing?")) return;
@@ -80,22 +74,46 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteUser = async (id) => {
-  const token = localStorage.getItem("adminToken");
-  if (!window.confirm("Are you sure you want to delete this user?")) return;
-  try {
-    await fetch(`http://localhost:3000/admin/users/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const token = localStorage.getItem("adminToken");
+    if (!window.confirm("Are you sure you want to delete this user?")) return;
+    try {
+      await fetch(`http://localhost:3000/admin/users/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUsers(prev => prev.filter(u => u._id !== id));
+      fetchAllListings(token);
+    } catch {
+      alert("Error deleting user");
+    }
+  };
 
-    // Refresh both users and listings
-    setUsers(prev => prev.filter(u => u._id !== id));
-    fetchAllListings(token); // ⬅ Refresh listings
-  } catch {
-    alert("Error deleting user");
-  }
-};
+  const handleDeleteMessage = async (id) => {
+    const token = localStorage.getItem("adminToken");
+    if (!window.confirm("Delete this message?")) return;
+    try {
+      await fetch(`http://localhost:3000/admin/messages/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReports(reports.filter(r => r._id !== id));
+    } catch {
+      alert("Error deleting message");
+    }
+  };
 
+  const handleDismissReport = async (id) => {
+    const token = localStorage.getItem("adminToken");
+    try {
+      await fetch(`http://localhost:3000/admin/messages/${id}/dismiss-report`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReports(reports.filter(r => r._id !== id));
+    } catch {
+      alert("Error dismissing report");
+    }
+  };
 
   const uniqueCategories = [...new Set(listings.map(l => l.category))];
   const filteredListings = listings.filter(listing => {
@@ -111,7 +129,6 @@ const AdminDashboard = () => {
   return (
     <div className="container-fluid">
       <div className="row">
-        {/* Sidebar */}
         <div className="col-md-3 col-lg-2 bg-light p-3 border-end vh-100">
           <h5 className="mb-4">Admin Panel</h5>
           <ul className="nav flex-column">
@@ -121,12 +138,19 @@ const AdminDashboard = () => {
             <li className="nav-item">
               <button className={`nav-link btn text-start w-100 ${activeTab === 'users' ? 'fw-bold text-primary' : ''}`} onClick={() => setActiveTab('users')}>Users</button>
             </li>
+            <li className="nav-item">
+              <button
+                className={`nav-link btn text-start w-100`}
+                onClick={() => navigate('/admin/reported-messages')}
+              >Reports</button>
+            </li>
+
           </ul>
         </div>
 
-        {/* Main Content */}
         <div className="col-md-9 col-lg-10 p-4">
-          <h2 className="mb-4">{activeTab === 'listings' ? 'Listings' : 'Users'}</h2>
+          <h2 className="mb-4">{activeTab === 'listings' ? 'Listings' : activeTab === 'users' ? 'Users' : 'Reported Messages'}</h2>
+
 
           {activeTab === 'listings' && (
             <>
@@ -220,6 +244,43 @@ const AdminDashboard = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {activeTab === 'reports' && (
+            <div>
+              {reports.length === 0 ? (
+                <p>No reported messages.</p>
+              ) : (
+                <table className="table table-bordered">
+                  <thead>
+                    <tr>
+                      <th>Sender</th>
+                      <th>Message</th>
+                      <th>Reason</th>
+                      <th>Reported At</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reports.map((msg) => (
+                      <tr key={msg._id}>
+                        <td>{msg.sender?.name || 'Unknown'}</td>
+                        <td>{msg.content}</td>
+                        <td>
+                          {msg.reports?.map((r, i) => (
+                            <div key={i}>{r.reason}</div>
+                          ))}
+                        </td>
+                        <td>{new Date(msg.createdAt).toLocaleString()}</td>
+                        <td>
+                          <button className="btn btn-sm btn-danger me-2" onClick={() => handleDeleteMessage(msg._id)}>Delete</button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => handleDismissReport(msg._id)}>Dismiss</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </div>
