@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import socket from "../src/socket";
 import ReviewModal from './ReviewModal';
-import { MdReport } from "react-icons/md";
+// import { MdReport } from "react-icons/md";
 
 const Chat = ({
   currentUser,

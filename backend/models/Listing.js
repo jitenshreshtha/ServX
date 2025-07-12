@@ -86,6 +86,18 @@ const listingSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  isService: {
+    type: Boolean,
+    default: false
+  },
+  salaryMin: {
+    type: Number,
+    default: null
+  },
+  salaryMax: {
+    type: Number,
+    default: null
   }
 }, {
   timestamps: true

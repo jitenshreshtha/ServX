@@ -32,30 +32,30 @@ function MyListings() {
         return;
       }
 
-      console.log('🔍 [Frontend] Fetching my listings...');
-      console.log('🔍 [Frontend] Token exists:', !!token);
-
       const queryParams = new URLSearchParams();
       queryParams.append('page', currentPage);
       queryParams.append('limit', itemsPerPage);
       queryParams.append('sortBy', sortBy);
       queryParams.append('sortOrder', sortOrder);
-      
-      if (filter !== 'all') queryParams.append('status', filter);
-      if (searchTerm.trim()) queryParams.append('search', searchTerm.trim());
+
+      // Services tab
+      if (filter === 'services') {
+        queryParams.append('isService', 'true');
+      } else if (filter !== 'all') {
+        queryParams.append('status', filter);
+      }
+
+      if (searchTerm.trim()) {
+        queryParams.append('search', searchTerm.trim());
+      }
 
       const url = `http://localhost:3000/my-listings?${queryParams}`;
-      console.log('🔍 [Frontend] Request URL:', url);
-
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
-
-      console.log('🔍 [Frontend] Response status:', response.status);
-      console.log('🔍 [Frontend] Response ok:', response.ok);
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
@@ -66,37 +66,62 @@ function MyListings() {
           navigate('/login');
           return;
         }
-        
         const errorData = await response.text();
-        console.error('🔍 [Frontend] Error response:', errorData);
         throw new Error(`HTTP ${response.status}: ${errorData}`);
       }
 
       const data = await response.json();
-      console.log('🔍 [Frontend] Response data:', data);
-      
-      // Handle response - check if it has listings property
       if (data && data.listings !== undefined) {
         setListings(data.listings || []);
         setPagination(data.pagination);
         setTotalPages(data.pagination?.pages || 1);
-        setDebugInfo(data.debug);
-        
-        console.log('🔍 [Frontend] Listings loaded:', data.listings?.length || 0);
-        console.log('🔍 [Frontend] Debug info:', data.debug);
+        setDebugInfo(data.debug || null);
       } else {
-        console.error('🔍 [Frontend] Unexpected response format:', data);
         setError('Unexpected response format from server');
         setListings([]);
         setTotalPages(1);
       }
-    } catch (error) {
-      console.error('🔍 [Frontend] Error fetching listings:', error);
-      setError(error.message);
+    } catch (err) {
+      setError(err.message);
       setListings([]);
       setTotalPages(1);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const moveToService = async (id) => {
+    const minInput = window.prompt('Enter minimum pay for this service:');
+    if (minInput === null) return;
+    const maxInput = window.prompt('Enter maximum pay for this service:');
+    if (maxInput === null) return;
+
+    const salaryMin = parseFloat(minInput);
+    const salaryMax = parseFloat(maxInput);
+    if (isNaN(salaryMin) || isNaN(salaryMax)) {
+      alert('Please enter valid numbers for pay range.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:3000/listings/${id}/move-to-service`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ salaryMin, salaryMax })
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchMyListings();
+      } else {
+        alert(data.error || 'Could not move to services.');
+      }
+    } catch (err) {
+      console.error('Error moving to service:', err);
+      alert('Error moving to services');
     }
   };
 
@@ -112,16 +137,6 @@ function MyListings() {
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1);
-  };
-
-  const handleSortChange = (newSortBy) => {
-    if (sortBy === newSortBy) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(newSortBy);
-      setSortOrder('desc');
-    }
     setCurrentPage(1);
   };
 
@@ -154,15 +169,16 @@ function MyListings() {
       active: 0,
       in_progress: 0,
       completed: 0,
-      cancelled: 0
+      cancelled: 0,
+      services: 0
     };
-    
     listings.forEach(listing => {
-      if (counts[listing.status] !== undefined) {
+      if (listing.isService) {
+        counts.services++;
+      } else if (counts[listing.status] !== undefined) {
         counts[listing.status]++;
       }
     });
-    
     return counts;
   };
 
@@ -183,7 +199,6 @@ function MyListings() {
 
   return (
     <div className="container mt-4">
-      {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2>My Listings</h2>
@@ -199,18 +214,17 @@ function MyListings() {
         </Link>
       </div>
 
-      {/* Debug Information (remove in production) */}
       {debugInfo && (
         <div className="alert alert-info mb-4">
           <h6>🔍 Debug Information:</h6>
           <small>
-            <strong>User ID:</strong> {debugInfo.userId} (Type: {debugInfo.userIdType})<br/>
-            <strong>Total User Listings in DB:</strong> {debugInfo.totalUserListings}<br/>
-            <strong>Current Filter Results:</strong> {listings.length}<br/>
+            <strong>User ID:</strong> {debugInfo.userId} (Type: {debugInfo.userIdType})<br />
+            <strong>Total User Listings in DB:</strong> {debugInfo.totalUserListings}<br />
+            <strong>Current Filter Results:</strong> {listings.length}<br />
             <strong>Filter Used:</strong> {JSON.stringify(debugInfo.filterUsed)}
           </small>
-          <button 
-            className="btn btn-sm btn-outline-info ms-3" 
+          <button
+            className="btn btn-sm btn-outline-info ms-3"
             onClick={() => setDebugInfo(null)}
           >
             Hide Debug
@@ -218,7 +232,6 @@ function MyListings() {
         </div>
       )}
 
-      {/* Error Display */}
       {error && (
         <div className="alert alert-danger mb-4">
           <h6>❌ Error occurred:</h6>
@@ -229,7 +242,6 @@ function MyListings() {
         </div>
       )}
 
-      {/* Search and Filters */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="row g-3">
@@ -243,21 +255,16 @@ function MyListings() {
                   onChange={handleSearchChange}
                 />
                 {searchTerm && (
-                  <button 
-                    className="btn btn-outline-secondary" 
-                    type="button"
-                    onClick={clearSearch}
-                  >
+                  <button className="btn btn-outline-secondary" type="button" onClick={clearSearch}>
                     <i className="bi bi-x"></i>
                   </button>
                 )}
               </div>
             </div>
-
             <div className="col-md-6">
               <div className="d-flex gap-2">
-                <select 
-                  className="form-select" 
+                <select
+                  className="form-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                 >
@@ -278,7 +285,6 @@ function MyListings() {
         </div>
       </div>
 
-      {/* Filter Tabs */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="btn-group w-100" role="group">
@@ -294,34 +300,40 @@ function MyListings() {
               className={`btn ${filter === 'active' ? 'btn-primary' : 'btn-outline-primary'}`}
               onClick={() => handleFilterChange('active')}
             >
-              Active
+              Active ({counts.active})
             </button>
             <button
               type="button"
               className={`btn ${filter === 'in_progress' ? 'btn-primary' : 'btn-outline-primary'}`}
               onClick={() => handleFilterChange('in_progress')}
             >
-              In Progress
+              In Progress ({counts.in_progress})
             </button>
             <button
               type="button"
               className={`btn ${filter === 'completed' ? 'btn-primary' : 'btn-outline-primary'}`}
               onClick={() => handleFilterChange('completed')}
             >
-              Completed
+              Completed ({counts.completed})
             </button>
             <button
               type="button"
               className={`btn ${filter === 'cancelled' ? 'btn-primary' : 'btn-outline-primary'}`}
               onClick={() => handleFilterChange('cancelled')}
             >
-              Cancelled
+              Cancelled ({counts.cancelled})
+            </button>
+            <button
+              type="button"
+              className={`btn ${filter === 'services' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => handleFilterChange('services')}
+            >
+              Services ({counts.services})
             </button>
           </div>
         </div>
       </div>
 
-      {/* Listings */}
       {loading ? (
         <div className="text-center py-4">
           <div className="spinner-border text-primary" role="status">
@@ -333,38 +345,18 @@ function MyListings() {
           <i className="bi bi-list-ul display-1 text-muted"></i>
           <h4 className="mt-3">
             {searchTerm ? 'No matching listings found' : 
-             filter === 'all' ? 'No listings yet' : `No ${filter.replace('_', ' ')} listings`}
+              filter === 'all' ? 'No listings yet' : filter === 'services' ? 'No services yet' : 
+              `No ${filter.replace('_', ' ')} listings`}
           </h4>
           <p className="text-muted">
-            {searchTerm ? `No listings match "${searchTerm}". Try a different search term.` :
-             filter === 'all' 
-              ? "You haven't created any listings yet. Start by creating your first listing!"
-              : `You don't have any ${filter.replace('_', ' ')} listings.`
-            }
+            {searchTerm ? `No listings match "${searchTerm}".` : 
+              filter === 'all' ? "You haven't created any listings yet." : 
+              filter === 'services' ? "You haven't moved any listings to services yet." : 
+              `You don't have any ${filter.replace('_', ' ')} listings.`}
           </p>
-          {debugInfo && debugInfo.totalUserListings > 0 && (
-            <div className="alert alert-warning mt-3">
-              <h6>🔍 Potential Issue Detected:</h6>
-              <small>
-                Found {debugInfo.totalUserListings} listings in database for this user, 
-                but current filter returned 0 results. This might indicate a data mismatch issue.
-                <br/>
-                <strong>Your User ID:</strong> {debugInfo.userId}
-                <br/>
-                <strong>Filter Used:</strong> {JSON.stringify(debugInfo.filterUsed)}
-              </small>
-            </div>
-          )}
-          {filter === 'all' && !searchTerm && (
-            <Link to="/create-listing" className="btn btn-primary mt-3">
-              <i className="bi bi-plus-circle me-2"></i>Create Your First Listing
-            </Link>
-          )}
-          {searchTerm && (
-            <button className="btn btn-outline-secondary mt-3" onClick={clearSearch}>
-              <i className="bi bi-x-circle me-2"></i>Clear Search
-            </button>
-          )}
+          <Link to="/create-listing" className="btn btn-primary mt-3">
+            <i className="bi bi-plus-circle me-2"></i>Create Your First Listing
+          </Link>
         </div>
       ) : (
         <>
@@ -379,13 +371,19 @@ function MyListings() {
                         {listing.status?.replace('_', ' ') || 'active'}
                       </span>
                     </div>
-                    
+
+                    {listing.isService && (
+                      <div className="mb-2">
+                        <strong>Pay Range:</strong> ${listing.salaryMin} - ${listing.salaryMax}
+                      </div>
+                    )}
+
                     <p className="card-text text-muted">
-                      {listing.description && listing.description.length > 120 
-                        ? listing.description.substring(0, 120) + '...' 
+                      {listing.description && listing.description.length > 120
+                        ? listing.description.substring(0, 120) + '...'
                         : listing.description || 'No description'}
                     </p>
-                    
+
                     <div className="row mb-3">
                       <div className="col-6">
                         <small className="text-muted">Offering:</small>
@@ -408,8 +406,8 @@ function MyListings() {
 
                     {listing.tags && listing.tags.length > 0 && (
                       <div className="mb-3">
-                        {listing.tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="badge bg-secondary me-1 mb-1">
+                        {listing.tags.slice(0, 3).map((tag, idx) => (
+                          <span key={idx} className="badge bg-secondary me-1 mb-1">
                             {tag}
                           </span>
                         ))}
@@ -447,20 +445,27 @@ function MyListings() {
                       </div>
                     </div>
                   </div>
-                  
                   <div className="card-footer bg-transparent">
                     <div className="d-flex gap-2">
                       <button className="btn btn-outline-primary btn-sm flex-fill">
                         <i className="bi bi-eye me-1"></i>View
                       </button>
-                      <button 
+                      <button
                         className="btn btn-outline-secondary btn-sm flex-fill"
                         onClick={() => navigate(`/edit-listing/${listing._id}`)}
                       >
                         <i className="bi bi-pencil me-1"></i>Edit
                       </button>
+                      {(!listing.status || listing.status === 'active') && !listing.isService && (
+                        <button
+                          className="btn btn-outline-warning btn-sm flex-fill"
+                          onClick={() => moveToService(listing._id)}
+                        >
+                          <i className="bi bi-arrow-repeat me-1"></i>Move to Services
+                        </button>
+                      )}
                       {(!listing.status || listing.status === 'active') && (
-                        <button className="btn btn-outline-danger btn-sm">
+                        <button className="btn btn-outline-danger btn-sm flex-fill">
                           <i className="bi bi-pause me-1"></i>Pause
                         </button>
                       )}

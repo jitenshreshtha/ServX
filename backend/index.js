@@ -1490,6 +1490,102 @@ app.get("/reviews/can-review/:userId/:listingId", authenticateToken, async (req,
   }
 });
 
+app.put("/listings/:id/move-to-service", authenticateToken, async (req, res, next) => {
+  try {
+    const { salaryMin, salaryMax } = req.body;
+    const listing = await Listing.findOne({
+      _id: req.params.id,
+      author: req.user.userId
+    });
+    if (!listing) return res.status(404).json({ error: "Listing not found" });
+
+    listing.isService = true;
+    listing.salaryMin = salaryMin;
+    listing.salaryMax = salaryMax;
+    await listing.save();
+
+    res.json({ success: true, message: "Listing moved to services", listing });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Get my listings (now supports services filter) ──────────────────
+app.get("/my-listings", authenticateToken, async (req, res, next) => {
+  try {
+    const {
+      page = 1,
+      limit = 6,
+      status,
+      category,
+      search,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+      isService
+    } = req.query;
+
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(48, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const filter = { author: req.user.userId };
+
+    // filter by service tab
+    if (isService === "true") {
+      filter.isService = true;
+    } else if (status && status !== "all") {
+      filter.status = status;
+    }
+
+    if (category && category !== "all") filter.category = category;
+
+    if (search && search.trim()) {
+      const term = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { title: term },
+        { description: term },
+        { skillOffered: term },
+        { skillWanted: term },
+        { tags: { $in: [term] } }
+      ];
+    }
+
+    const sortField = ["createdAt", "title", "status", "views"].includes(sortBy)
+      ? sortBy
+      : "createdAt";
+    const sort = { [sortField]: sortOrder === "asc" ? 1 : -1 };
+
+    const [listings, totalCount] = await Promise.all([
+      Listing.find(filter)
+        .populate("author", "name email skills rating")
+        .sort(sort)
+        .limit(itemsPerPage)
+        .skip(skip)
+        .lean(),
+      Listing.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      listings,
+      pagination: {
+        current: currentPage,
+        pages: Math.ceil(totalCount / itemsPerPage),
+        total: totalCount
+      },
+      filters: {
+        status: status || null,
+        category: category || null,
+        search: search || null,
+        isService: isService === "true"
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 // Apply error handling middleware
 app.use(errorHandler);
 
