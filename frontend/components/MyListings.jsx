@@ -38,11 +38,14 @@ function MyListings() {
       queryParams.append('sortBy', sortBy);
       queryParams.append('sortOrder', sortOrder);
 
-      // Services tab
+      // Services tab - only show services
       if (filter === 'services') {
         queryParams.append('isService', 'true');
-      } else if (filter !== 'all') {
+      } 
+      // Other tabs - exclude services unless in 'all' filter
+      else if (filter !== 'all') {
         queryParams.append('status', filter);
+        queryParams.append('isService', 'false');
       }
 
       if (searchTerm.trim()) {
@@ -172,6 +175,16 @@ function MyListings() {
       cancelled: 0,
       services: 0
     };
+    
+    // If we have pagination data with counts, use that
+    if (pagination?.counts) {
+      return {
+        ...counts,
+        ...pagination.counts
+      };
+    }
+    
+    // Fallback to client-side counting if pagination.counts isn't available
     listings.forEach(listing => {
       if (listing.isService) {
         counts.services++;
@@ -179,6 +192,7 @@ function MyListings() {
         counts[listing.status]++;
       }
     });
+    
     return counts;
   };
 

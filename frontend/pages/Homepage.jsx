@@ -50,10 +50,6 @@ function Homepage() {
       queryParams.append('limit', itemsPerPage);
       if (filters.skillWanted) queryParams.append("skillWanted", filters.skillWanted);
       if (filters.locationQuery) queryParams.append("location", filters.locationQuery);
-
-      // Add filters
-      if (filters.skillWanted) queryParams.append("skillWanted", filters.skillWanted);
-      if (filters.locationQuery) queryParams.append("location", filters.locationQuery);
       if (filters.category && filters.category !== 'all') queryParams.append("category", filters.category);
       if (filters.search) queryParams.append("search", filters.search);
 
@@ -121,6 +117,25 @@ function Homepage() {
           id: listing._id,
           title: listing.title,
         },
+      },
+    });
+  };
+
+  const handleHireClick = (service) => {
+    if (!service || !service._id) {
+      alert("Cannot proceed with payment: missing service info");
+      return;
+    }
+
+    // Navigate to payment page with service details
+    navigate("/payment", {
+      state: {
+        serviceId: service._id,
+        title: service.title,
+        priceRange: {
+          min: service.salaryMin,
+          max: service.salaryMax
+        }
       },
     });
   };
@@ -235,7 +250,7 @@ function Homepage() {
       <div className="container my-5">
         <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
-            <h3>Skill Exchange Listings</h3>
+            <h3>Listings</h3>
             {pagination && (
               <p className="text-muted mb-0">
                 Showing {pagination.showing.start}-{pagination.showing.end} of {pagination.total} listings
@@ -285,7 +300,9 @@ function Homepage() {
                     <div className="card-body">
                       <div className="d-flex justify-content-between align-items-start mb-2">
                         <h5 className="card-title">{listing.title}</h5>
-                        <span className="badge bg-primary">{listing.category}</span>
+                        <span className={`badge ${listing.isService ? 'bg-success' : 'bg-primary'}`}>
+                          {listing.isService ? 'Service' : listing.category}
+                        </span>
                       </div>
                       
                       <p className="text-muted mb-3">
@@ -299,8 +316,14 @@ function Homepage() {
                           <div className="fw-bold text-success">{listing.skillOffered}</div>
                         </div>
                         <div className="col-6">
-                          <small className="text-muted">Seeking:</small>
-                          <div className="fw-bold text-primary">{listing.skillWanted}</div>
+                          <small className="text-muted">
+                            {listing.isService ? 'Pay Range:' : 'Seeking:'}
+                          </small>
+                          <div className="fw-bold text-primary">
+                            {listing.isService ? 
+                              `$${listing.salaryMin} - $${listing.salaryMax}` : 
+                              listing.skillWanted}
+                          </div>
                         </div>
                       </div>
 
@@ -316,7 +339,6 @@ function Homepage() {
                             <small className="text-muted">
                               By {listing.author?.name}
                             </small>
-                            {/* Add rating display */}
                             {listing.author?.rating?.count > 0 && (
                               <div className="mt-1">
                                 <StarRating 
@@ -381,20 +403,22 @@ function Homepage() {
                     <div className="card-footer bg-transparent">
                       {loggedIn ? (
                         <button 
-                          className="btn btn-primary w-100" 
-                          onClick={() => handleContactClick(listing)}
+                          className={`btn w-100 ${listing.isService ? 'btn-success' : 'btn-primary'}`}
+                          onClick={() => listing.isService ? handleHireClick(listing) : handleContactClick(listing)}
                         >
-                          <i className="bi bi-chat-dots me-2"></i>Contact
+                          <i className={`bi ${listing.isService ? 'bi-credit-card' : 'bi-chat-dots'} me-2`}></i>
+                          {listing.isService ? 'Hire Now' : 'Contact'}
                         </button>
                       ) : (
                         <button
-                          className="btn btn-outline-primary w-100"
+                          className={`btn w-100 ${listing.isService ? 'btn-outline-success' : 'btn-outline-primary'}`}
                           onClick={() => {
-                            alert('Please login to contact the author!');
+                            alert(`Please login to ${listing.isService ? 'hire this service' : 'contact the author'}!`);
                             navigate('/login');
                           }}
                         >
-                          <i className="bi bi-box-arrow-in-right me-2"></i>Login to Contact
+                          <i className="bi bi-box-arrow-in-right me-2"></i>
+                          Login to {listing.isService ? 'Hire' : 'Contact'}
                         </button>
                       )}
                     </div>

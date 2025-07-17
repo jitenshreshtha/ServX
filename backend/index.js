@@ -1535,6 +1535,7 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
       filter.isService = true;
     } else if (status && status !== "all") {
       filter.status = status;
+      filter.isService = false; 
     }
 
     if (category && category !== "all") filter.category = category;
