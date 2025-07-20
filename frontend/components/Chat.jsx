@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import socket from "../src/socket";
 import ReviewModal from './ReviewModal';
-// import { MdReport } from "react-icons/md";
+import { MdReport } from "react-icons/md";
 
 const Chat = ({
   currentUser,
@@ -21,6 +21,26 @@ const Chat = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
+  // Debug: socket connection status
+  useEffect(() => {
+    socket.on("connect", () => {
+      console.log("Socket connected with id:", socket.id);
+    });
+    socket.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+    socket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err);
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("connect_error");
+    };
+  }, []);
+
+  // Join room on mount or when participants/listing changes
   useEffect(() => {
     if (!currentUser?.id || !recipient?.id || !listing?.id) return;
     if (chatHistory.length >= 3) {
@@ -30,8 +50,10 @@ const Chat = ({
     const room = `room_${ids.join("_")}`;
     setRoomId(room);
     socket.emit("join_room", room);
+    console.log("Joined room", room);
   }, [chatHistory.length, currentUser, recipient, listing]);
 
+  // Load message history on conversation change
   useEffect(() => {
     const fetchMessages = async () => {
       const token = localStorage.getItem("token");
@@ -56,8 +78,11 @@ const Chat = ({
     if (conversationId) fetchMessages();
   }, [conversationId]);
 
+  // Socket: Receive new message from backend
   useEffect(() => {
     const handleReceive = (data) => {
+      // Debug: Show all incoming socket messages
+      console.log("Socket receive_private_message:", data);
       if (
         data.conversationId === conversationId &&
         data.senderId !== currentUser.id
@@ -79,8 +104,17 @@ const Chat = ({
     return () => socket.off("receive_private_message", handleReceive);
   }, [conversationId, currentUser.id]);
 
+  // Send message or file
   const handleSend = () => {
-    if (!roomId || !currentUser?.id || !recipient?.id || !listing?.id) return;
+    if (!roomId || !currentUser?.id || !recipient?.id || !listing?.id) {
+      console.warn("Missing data, cannot send message", {
+        roomId,
+        currentUser,
+        recipient,
+        listing,
+      });
+      return;
+    }
 
     const timestamp = new Date().toISOString();
 
@@ -95,6 +129,7 @@ const Chat = ({
         conversationId,
       };
 
+      console.log("Emitting send_private_message with data:", msgData);
       socket.emit("send_private_message", msgData);
 
       setChatHistory((prev) => [
@@ -114,7 +149,7 @@ const Chat = ({
       reader.onload = () => {
         const fileData = reader.result.split(",")[1];
 
-        socket.emit("send_file_message", {
+        const fileMsg = {
           senderId: currentUser.id,
           recipientId: recipient.id,
           listingId: listing.id,
@@ -123,7 +158,10 @@ const Chat = ({
           fileType: file.type,
           senderName: currentUser.name,
           conversationId,
-        });
+        };
+
+        console.log("Emitting send_file_message with data:", fileMsg);
+        socket.emit("send_file_message", fileMsg);
 
         setChatHistory((prev) => [
           ...prev,
@@ -143,11 +181,13 @@ const Chat = ({
     setFile(null);
   };
 
+  // Report a message
   const handleReport = (msg) => {
-  setSelectedMessage(msg);
-  setShowReportModal(true);
-};
+    setSelectedMessage(msg);
+    setShowReportModal(true);
+  };
 
+  // Review logic
   const handleReviewSubmitted = (review) => {
     setShowReviewModal(false);
     setShowReviewPrompt(false);
@@ -192,7 +232,10 @@ const Chat = ({
               {msg.senderId !== currentUser.id && (
                 <div className="position-absolute top-0 start-100 translate-middle-x mt-1">
                   <button
-                    className="btn btn-light btn-sm border-0" title="Report this message" style={{ transition: 'transform 0.2s ease', cursor: 'pointer' }} onMouseOver={e => e.currentTarget.style.transform = 'scale(1.15)'} onMouseOut={e => e.currentTarget.style.transform = 'scale(1)' }
+                    className="btn btn-light btn-sm border-0" title="Report this message"
+                    style={{ transition: 'transform 0.2s ease', cursor: 'pointer' }}
+                    onMouseOver={e => e.currentTarget.style.transform = 'scale(1.15)'}
+                    onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
                     onClick={() => handleReport(msg)}
                   >
                     <MdReport size={18} color="red" />
@@ -312,13 +355,13 @@ const Chat = ({
                 </small>
               </div>
               <div className="d-flex gap-2">
-                <button 
+                <button
                   className="btn btn-sm btn-outline-secondary"
                   onClick={() => setShowReviewPrompt(false)}
                 >
                   Later
                 </button>
-                <button 
+                <button
                   className="btn btn-sm btn-primary"
                   onClick={() => setShowReviewModal(true)}
                 >

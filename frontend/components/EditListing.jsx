@@ -1,14 +1,12 @@
-// ✅ Final EditListing.jsx (Reusable for Admin and User)
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 
-function EditListing({ mode = "user" }) {
+const EditListing = ({ mode = "user" }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [errors, setErrors] = useState({});
+  const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
     const fetchListing = async () => {
@@ -21,6 +19,12 @@ function EditListing({ mode = "user" }) {
         const res = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` }
         });
+
+        if (res.status === 404) {
+          setFormData(null);
+          setLoading(false);
+          return;
+        }
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Listing not found");
@@ -36,8 +40,7 @@ function EditListing({ mode = "user" }) {
           },
         });
       } catch (err) {
-        alert("Error loading listing: " + err.message);
-        navigate(mode === "admin" ? "/admin-dashboard" : "/my-listings");
+        setErrorMsg("Error loading listing: " + err.message);
       } finally {
         setLoading(false);
       }
@@ -45,119 +48,206 @@ function EditListing({ mode = "user" }) {
     fetchListing();
   }, [id, mode, navigate]);
 
+  // Handle form submission (same as before)
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name.startsWith("location.")) {
-      const field = name.split(".")[1];
       setFormData((prev) => ({
         ...prev,
-        location: { ...prev.location, [field]: type === "checkbox" ? checked : value },
+        location: {
+          ...prev.location,
+          [name.replace("location.", "")]: type === "checkbox" ? checked : value,
+        },
       }));
     } else {
       setFormData((prev) => ({
         ...prev,
-        [name]: type === "checkbox" ? checked : value,
+        [name]: value,
       }));
     }
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
-  };
-
-  const validate = () => {
-    const errs = {};
-    if (!formData.title?.trim()) errs.title = "Required";
-    if (!formData.description?.trim()) errs.description = "Required";
-    if (!formData.skillOffered?.trim()) errs.skillOffered = "Required";
-    if (!formData.skillWanted?.trim()) errs.skillWanted = "Required";
-    if (!formData.category?.trim()) errs.category = "Required";
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
-
-    const token = localStorage.getItem(mode === "admin" ? "adminToken" : "token");
-    const url = mode === "admin"
-      ? `http://localhost:3000/admin/listings/${id}`
-      : `http://localhost:3000/listings/${id}`;
-
-    const update = {
-      ...formData,
-      tags: formData.tags.split(",").map((t) => t.trim()).filter(Boolean),
-    };
-
     try {
+      const token = localStorage.getItem(mode === "admin" ? "adminToken" : "token");
+      const url = mode === "admin"
+        ? `http://localhost:3000/admin/listings/${id}`
+        : `http://localhost:3000/listings/${id}`;
+
+      // Prepare data for backend
+      const payload = {
+        ...formData,
+        tags: formData.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+      };
+
       const res = await fetch(url, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(update),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update");
+      if (!res.ok) throw new Error(data.error || "Failed to update listing");
 
-      
+      alert("Listing updated successfully!");
       navigate(mode === "admin" ? "/admin-dashboard" : "/my-listings");
     } catch (err) {
-      console.error("Update failed:", err);
-      alert("Error: " + err.message);
+      setErrorMsg("Error updating listing: " + err.message);
     }
   };
 
-  if (loading || !formData) return <p>Loading listing...</p>;
+  if (loading) return <p>Loading listing...</p>;
+
+  if (!formData) {
+    return (
+      <div className="container mt-5">
+        <div className="alert alert-danger">
+          <h5>Listing Not Found</h5>
+          <p>
+            The listing you are trying to edit does not exist or has been deleted.
+          </p>
+          <button className="btn btn-primary" onClick={() => navigate("/my-listings")}>
+            Go Back to My Listings
+          </button>
+        </div>
+        {errorMsg && (
+          <div className="alert alert-warning mt-3">
+            {errorMsg}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h3>Edit Listing</h3>
-      <button className="btn btn-secondary mb-3" onClick={() => navigate(mode === "admin" ? "/admin-dashboard" : "/my-listings")}>← Back to {mode === "admin" ? "Admin Dashboard" : "My Listings"}</button>
-
-
-      <div className="mb-3">
-        <label>Title</label>
-        <input name="title" className={`form-control ${errors.title ? "is-invalid" : ""}`} value={formData.title} onChange={handleChange} />
-        {errors.title && <div className="invalid-feedback">{errors.title}</div>}
-      </div>
-
-      <div className="mb-3">
-        <label>Description</label>
-        <textarea name="description" className={`form-control ${errors.description ? "is-invalid" : ""}`} rows="3" value={formData.description} onChange={handleChange} />
-        {errors.description && <div className="invalid-feedback">{errors.description}</div>}
-      </div>
-
-      <div className="row">
-        <div className="col-md-6 mb-3">
+    <div className="container mt-4">
+      <h2>Edit Listing</h2>
+      {errorMsg && (
+        <div className="alert alert-warning">{errorMsg}</div>
+      )}
+      <form onSubmit={handleSubmit}>
+        <div className="mb-3">
+          <label>Title</label>
+          <input
+            type="text"
+            className="form-control"
+            name="title"
+            value={formData.title}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="mb-3">
+          <label>Description</label>
+          <textarea
+            className="form-control"
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="mb-3">
           <label>Skill Offered</label>
-          <input name="skillOffered" className={`form-control ${errors.skillOffered ? "is-invalid" : ""}`} value={formData.skillOffered} onChange={handleChange} />
-          {errors.skillOffered && <div className="invalid-feedback">{errors.skillOffered}</div>}
+          <input
+            type="text"
+            className="form-control"
+            name="skillOffered"
+            value={formData.skillOffered}
+            onChange={handleChange}
+            required
+          />
         </div>
-        <div className="col-md-6 mb-3">
+        <div className="mb-3">
           <label>Skill Wanted</label>
-          <input name="skillWanted" className={`form-control ${errors.skillWanted ? "is-invalid" : ""}`} value={formData.skillWanted} onChange={handleChange} />
-          {errors.skillWanted && <div className="invalid-feedback">{errors.skillWanted}</div>}
+          <input
+            type="text"
+            className="form-control"
+            name="skillWanted"
+            value={formData.skillWanted}
+            onChange={handleChange}
+          />
         </div>
-      </div>
-
-      <div className="mb-3">
-        <label>Category</label>
-        <input name="category" className={`form-control ${errors.category ? "is-invalid" : ""}`} value={formData.category} onChange={handleChange} />
-        {errors.category && <div className="invalid-feedback">{errors.category}</div>}
-      </div>
-
-      <div className="mb-3">
-        <label>Tags (comma-separated)</label>
-        <input name="tags" className="form-control" value={formData.tags} onChange={handleChange} />
-      </div>
-
-      <div className="d-flex justify-content-end">
-        <button type="submit" className="btn btn-primary">Update</button>
-      </div>
-      
-    </form>
+        <div className="mb-3">
+          <label>Category</label>
+          <input
+            type="text"
+            className="form-control"
+            name="category"
+            value={formData.category}
+            onChange={handleChange}
+          />
+        </div>
+        <div className="mb-3">
+          <label>Estimated Duration</label>
+          <input
+            type="text"
+            className="form-control"
+            name="estimatedDuration"
+            value={formData.estimatedDuration}
+            onChange={handleChange}
+          />
+        </div>
+        <div className="mb-3">
+          <label>Tags (comma separated)</label>
+          <input
+            type="text"
+            className="form-control"
+            name="tags"
+            value={formData.tags}
+            onChange={handleChange}
+          />
+        </div>
+        <div className="mb-3">
+          <label>Location</label>
+          <input
+            type="text"
+            className="form-control mb-2"
+            name="location.city"
+            placeholder="City"
+            value={formData.location.city}
+            onChange={handleChange}
+          />
+          <input
+            type="text"
+            className="form-control mb-2"
+            name="location.state"
+            placeholder="State"
+            value={formData.location.state}
+            onChange={handleChange}
+          />
+          <input
+            type="text"
+            className="form-control mb-2"
+            name="location.country"
+            placeholder="Country"
+            value={formData.location.country}
+            onChange={handleChange}
+          />
+          <div className="form-check">
+            <input
+              type="checkbox"
+              className="form-check-input"
+              name="location.isRemote"
+              checked={formData.location.isRemote}
+              onChange={handleChange}
+            />
+            <label className="form-check-label">Remote</label>
+          </div>
+        </div>
+        <button className="btn btn-success" type="submit">
+          Save Changes
+        </button>
+        <button className="btn btn-secondary ms-2" type="button" onClick={() => navigate("/my-listings")}>
+          Cancel
+        </button>
+      </form>
+    </div>
   );
-}
+};
 
 export default EditListing;
