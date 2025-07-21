@@ -121,24 +121,42 @@ function Homepage() {
     });
   };
 
-  const handleHireClick = (service) => {
-    if (!service || !service._id) {
-      alert("Cannot proceed with payment: missing service info");
-      return;
-    }
+  const handleHireClick = async (service) => {
+  if (!loggedIn) {
+    alert("Please login to proceed with hiring.");
+    return navigate("/login");
+  }
 
-    // Navigate to payment page with service details
-    navigate("/payment", {
-      state: {
-        serviceId: service._id,
-        title: service.title,
-        priceRange: {
-          min: service.salaryMin,
-          max: service.salaryMax
-        }
+  try {
+    const token = localStorage.getItem("token");
+    console.log("🟡 Hiring service:", service);
+    console.log("🟡 Sending request with serviceId:", service._id);
+
+    const response = await fetch("http://localhost:3000/create-checkout-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
       },
+      body: JSON.stringify({ serviceId: service._id })
     });
-  };
+
+    console.log("🟡 Raw response:", response);
+
+    const data = await response.json();
+    console.log("🟢 Stripe session response:", data);
+
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      alert("Unable to start payment session.");
+    }
+  } catch (err) {
+    console.error("🔴 Payment error:", err);
+    alert("Something went wrong. Try again later.");
+  }
+};
+
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {

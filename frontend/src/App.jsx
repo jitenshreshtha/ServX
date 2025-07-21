@@ -20,6 +20,8 @@ import AdminReportedMessagesPage from "../pages/AdminReportedMessagesPage";
 import AdminTicketsPage from "../pages/AdminTicketsPage";
 import EditUserPage from "../pages/EditUserPage";
 import SupportCenterPage from "../pages/SupportCenterPage";
+import PaymentSuccessPage from "../pages/PaymentSuccessPage";
+import PaymentcancelledPage from "../pages/PaymentcancelledPage";
 
 function App() {
   return (
@@ -75,6 +77,8 @@ function App() {
           />
           <Route path="/about" element={<AboutUsPage />} />
           <Route path="/contact" element={<ContactUsPage />} />
+          <Route path="/payment-success" element={<PaymentSuccessPage />} />
+          <Route path="/payment-cancelled" element={<PaymentcancelledPage />} />
         </Routes>
       </Router>
     </AuthProvider>

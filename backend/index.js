@@ -6,6 +6,9 @@ const jwt = require("jsonwebtoken");
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const path = require('path');
+const Stripe = require('stripe');
+
+const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 
 //chat module
 const setupSocketIO = require("./controllers/chatController");
@@ -1654,6 +1657,53 @@ app.delete("/admin/tickets/:id", authenticateAdmin, async (req, res, next) => {
     next(err);
   }
 });
+
+
+app.post("/create-checkout-session", authenticateToken, async (req, res) => {
+  console.log("⚡ /create-checkout-session route called");
+
+  try {
+    const { serviceId } = req.body;
+    console.log("Received serviceId:", serviceId);
+
+    const listing = await Listing.findById(serviceId);
+    if (!listing || !listing.isService) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+
+    const price = listing.salaryMin * 100; // Stripe expects cents
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [{
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: listing.title,
+            description: listing.description,
+          },
+          unit_amount: price,
+        },
+        quantity: 1,
+      }],
+      success_url: `${process.env.FRONTEND_URL}/payment-success?service=${serviceId}`,
+      cancel_url: `${process.env.FRONTEND_URL}/payment-cancelled`,
+      metadata: {
+        listingId: serviceId,
+        buyerId: req.user.userId,
+      }
+    });
+
+    console.log("Stripe session created:", session.url);
+    res.json({ url: session.url });
+
+  } catch (err) {
+    console.error("Stripe Checkout Error:", err);
+    res.status(500).json({ error: "Failed to create checkout session" });
+  }
+});
+
 
 
 
