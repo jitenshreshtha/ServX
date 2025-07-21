@@ -17,9 +17,9 @@ import AuthCallback from '../components/AuthCallback';
 import EditListingPage from "../pages/EditListingPage";
 import UserReviews from '../components/UserReviews';
 import AdminReportedMessagesPage from "../pages/AdminReportedMessagesPage";
-
+import AdminTicketsPage from "../pages/AdminTicketsPage";
 import EditUserPage from "../pages/EditUserPage";
-
+import SupportCenterPage from "../pages/SupportCenterPage";
 
 function App() {
   return (
@@ -37,7 +37,7 @@ function App() {
           <Route path="/admin-dashboard" element={<ProtectedRoute adminOnly><AdminDashboardPage /></ProtectedRoute>} />
           <Route path="/admin/edit-listing/:id" element={<ProtectedRoute adminOnly><EditListingPage mode="admin" /></ProtectedRoute>} />
           <Route path="/edit-listing/:id" element={<ProtectedRoute><EditListingPage mode="user" /></ProtectedRoute>} />
-
+          <Route path="/admin/tickets" element={<ProtectedRoute adminOnly><AdminTicketsPage /></ProtectedRoute>} />
           <Route path="/admin/edit-user/:id" element={<ProtectedRoute adminOnly><EditUserPage /></ProtectedRoute>} />
           <Route path="/admin/reported-messages" element={<ProtectedRoute adminOnly><AdminReportedMessagesPage /></ProtectedRoute>} />
 
@@ -46,14 +46,24 @@ function App() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-
+         
+          <Route path="/profile/:userId" element={<ProfilePage />} />
+          <Route path="/my-profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/reviews/:userId" element={<UserReviews />} />
           <Route path="/my-reviews" element={
             <ProtectedRoute>
               <UserReviews />
             </ProtectedRoute>
-          }
+          } />
+          <Route
+            path="/support"
+            element={
+              <ProtectedRoute>
+                <SupportCenterPage />
+              </ProtectedRoute>
+            }
           />
+
 
           <Route path="*" element={
             <div className="container mt-5 text-center">

@@ -144,7 +144,7 @@ const AdminDashboard = () => {
                 onClick={() => navigate('/admin/reported-messages')}
               >Reports</button>
             </li>
-
+            <li className="nav-item"><button className="nav-link btn text-start w-100" onClick={() => navigate("/admin/tickets")}>Tickets</button></li>
           </ul>
         </div>
 

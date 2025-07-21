@@ -222,9 +222,11 @@ function Header() {
           <NavLink to="/about" label="About Us" />
           <NavLink to="/contact" label="Contact Us" />
 
-          {/* Show Create Listing only for regular logged-in users */}
           {loggedIn && !isAdmin ? (
-            <NavLink to="/create-listing" label="Create Listing" />
+            <>
+              <NavLink to="/create-listing" label="Create Listing" />
+              <NavLink to="/support" label="Support" />
+            </>
           ) : !loggedIn ? (
             <a
               href="#"
@@ -243,6 +245,7 @@ function Header() {
           ) : null}
         </div>
       </nav>
+
     </header>
   );
 }

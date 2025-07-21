@@ -18,6 +18,7 @@ const Message = require("./models/Message");
 const Conversation = require("./models/Conversation");
 const Otp = require("./models/Otp");
 const sendOTPEmail = require("./utils/sendEmail");
+const Ticket = require("./models/Ticket");
 const app = express();
 const server = require("http").createServer(app);
 
@@ -1585,6 +1586,75 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
     next(error);
   }
 });
+
+// Support Ticket Model
+
+
+// ───── User: Create Ticket ────────────────────────────────
+app.post("/tickets", authenticateToken, async (req, res, next) => {
+  try {
+    const ticket = new Ticket({
+      user: req.user.userId,
+      subject: req.body.subject,
+      message: req.body.message
+    });
+    await ticket.save();
+    res.status(201).json({ success: true, ticket });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ───── User: Get My Tickets ────────────────────────────────
+app.get("/tickets/my", authenticateToken, async (req, res, next) => {
+  try {
+    const tickets = await Ticket.find({ user: req.user.userId }).sort({ createdAt: -1 });
+    res.json({ tickets });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ───── Admin: CRUD Tickets ────────────────────────────────
+app.get("/admin/tickets", authenticateAdmin, async (req, res, next) => {
+  try {
+    const tickets = await Ticket.find().populate("user", "name email").sort({ createdAt: -1 });
+    res.json({ tickets });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/admin/tickets/:id", authenticateAdmin, async (req, res, next) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id).populate("user", "name email");
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    res.json({ ticket });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put("/admin/tickets/:id", authenticateAdmin, async (req, res, next) => {
+  try {
+    const ticket = await Ticket.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    res.json({ ticket });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.delete("/admin/tickets/:id", authenticateAdmin, async (req, res, next) => {
+  try {
+    const ticket = await Ticket.findByIdAndDelete(req.params.id);
+    if (!ticket) return res.status(404).json({ error: "Ticket not found" });
+    res.json({ message: "Ticket deleted" });
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 
 // Apply error handling middleware
