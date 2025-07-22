@@ -24,19 +24,21 @@ const ReportedMessages = () => {
     fetchReports();
   }, []);
 
+  // PATCH endpoint for soft delete (message is marked isDeleted:true)
   const handleDelete = async (id) => {
-    const token = localStorage.getItem("adminToken");
-    if (!window.confirm("Delete this message?")) return;
-    try {
-      await fetch(`http://localhost:3000/admin/messages/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setReports(reports.filter((r) => r._id !== id));
-    } catch {
-      alert("Error deleting message");
-    }
-  };
+  const token = localStorage.getItem("adminToken");
+  if (!window.confirm("Delete this message?")) return;
+  try {
+    await fetch(`http://localhost:3000/admin/messages/${id}/delete`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setReports(reports.filter((r) => r._id !== id));
+  } catch {
+    alert("Error deleting message");
+  }
+};
+
 
   const handleDismiss = async (id) => {
     const token = localStorage.getItem("adminToken");

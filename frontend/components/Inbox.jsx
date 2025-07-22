@@ -132,8 +132,13 @@ const Inbox = () => {
                   id: getOtherParticipant(selectedConversation.participants)?._id,
                   name: getOtherParticipant(selectedConversation.participants)?.name,
                 }}
+                // Robust listing id handling here!
                 listing={{
-                  id: selectedConversation.listing?._id,
+                  id:
+                    selectedConversation.listing?.id ||
+                    selectedConversation.listing?._id ||
+                    selectedConversation.listing?.listingId ||
+                    "",
                   title: selectedConversation.listing?.title,
                 }}
                 conversationId={selectedConversation._id}

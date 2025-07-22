@@ -680,6 +680,48 @@ app.post("/listings", authenticateToken, async (req, res, next) => {
     next(error);
   }
 });
+app.put("/listings/:id", authenticateToken, async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+
+    if (!listing) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+
+    // Only allow the owner to update
+    if (listing.author.toString() !== req.user.userId) {
+      return res.status(403).json({ error: "You do not have permission to edit this listing" });
+    }
+
+    const updates = req.body;
+    Object.assign(listing, updates);
+
+    await listing.save();
+
+    res.json({ success: true, listing });
+  } catch (err) {
+    console.error("❌ PUT /listings/:id error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+app.get("/listings/:id", authenticateToken, async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id).populate("author", "name email skills rating");
+    if (!listing) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+
+    // Security: only allow the owner of the listing to view it
+    if (listing.author._id.toString() !== req.user.userId) {
+      return res.status(403).json({ error: "Unauthorized access to this listing" });
+    }
+
+    res.json({ success: true, listing });
+  } catch (err) {
+    console.error("❌ Error fetching single listing:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 app.get("/listings", async (req, res, next) => {
   try {
@@ -902,7 +944,10 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
 app.get("/messages", authenticateToken, async (req, res) => {
   try {
     const { conversationId } = req.query;
-    const messages = await Message.find({ conversation: conversationId })
+    const messages = await Message.find({
+      conversation: conversationId,
+      isDeleted: { $ne: true },
+    })
       .sort({ createdAt: 1 })
       .populate("sender", "name");
 
@@ -911,6 +956,8 @@ app.get("/messages", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch messages" });
   }
 });
+
+
 
 app.get("/conversations", authenticateToken, async (req, res) => {
   try {
@@ -1012,7 +1059,10 @@ app.post("/messages/:id/report", authenticateToken, async (req, res, next) => {
 });
 app.get("/admin/reported-messages", authenticateAdmin, async (req, res, next) => {
   try {
-    const reported = await Message.find({ "reports.0": { $exists: true } })
+    const reported = await Message.find({
+      "reports.0": { $exists: true },
+      isDeleted: false, // << important!
+    })
       .populate("sender", "name email")
       .populate("reports.reportedBy", "name email")
       .populate("conversation", "listing participants")
@@ -1023,6 +1073,22 @@ app.get("/admin/reported-messages", authenticateAdmin, async (req, res, next) =>
     next(err);
   }
 });
+
+
+app.patch("/admin/messages/:id/delete", authenticateAdmin, async (req, res, next) => {
+  try {
+    const message = await Message.findByIdAndUpdate(
+      req.params.id,
+      { isDeleted: true },
+      { new: true }
+    );
+    if (!message) return res.status(404).json({ error: "Message not found" });
+    res.json({ success: true, message: "Message deleted (soft)", messageData: message });
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 // Contact form submission route
 app.post('/contact', async (req, res, next) => {

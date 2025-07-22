@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import socket from "../src/socket";
 import ReviewModal from './ReviewModal';
-// import { MdReport } from "react-icons/md";
+import { MdReport } from "react-icons/md";
+
+const getId = (obj) => obj?.id || obj?._id || "";
 
 const Chat = ({
   currentUser,
@@ -11,6 +13,10 @@ const Chat = ({
   initialMessages = [],
   conversationId,
 }) => {
+  const senderId = getId(currentUser);
+  const recipientId = getId(recipient);
+  const listingId = getId(listing);
+
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState(initialMessages);
   const [roomId, setRoomId] = useState("");
@@ -20,6 +26,11 @@ const Chat = ({
   const [canReview, setCanReview] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
+
+  // Prevent render if required IDs or roomId are missing
+  if (!senderId || !recipientId || !listingId) {
+    return <div>Loading chat...</div>;
+  }
 
   // Debug: socket connection status
   useEffect(() => {
@@ -42,16 +53,17 @@ const Chat = ({
 
   // Join room on mount or when participants/listing changes
   useEffect(() => {
-    if (!currentUser?.id || !recipient?.id || !listing?.id) return;
+    if (!senderId || !recipientId || !listingId) return;
     if (chatHistory.length >= 3) {
       checkReviewEligibility();
     }
-    const ids = [currentUser.id, recipient.id].sort();
+    const ids = [senderId, recipientId].sort();
     const room = `room_${ids.join("_")}`;
     setRoomId(room);
     socket.emit("join_room", room);
     console.log("Joined room", room);
-  }, [chatHistory.length, currentUser, recipient, listing]);
+    // eslint-disable-next-line
+  }, [chatHistory.length, senderId, recipientId, listingId]);
 
   // Load message history on conversation change
   useEffect(() => {
@@ -68,7 +80,7 @@ const Chat = ({
       const msgs = data.messages.map((msg) => ({
         _id: msg._id,
         content: msg.content,
-        senderId: msg.sender._id,
+        senderId: getId(msg.sender),
         senderName: msg.sender.name,
         timestamp: msg.createdAt,
       }));
@@ -76,6 +88,7 @@ const Chat = ({
     };
 
     if (conversationId) fetchMessages();
+    // eslint-disable-next-line
   }, [conversationId]);
 
   // Socket: Receive new message from backend
@@ -85,7 +98,7 @@ const Chat = ({
       console.log("Socket receive_private_message:", data);
       if (
         data.conversationId === conversationId &&
-        data.senderId !== currentUser.id
+        data.senderId !== senderId
       ) {
         setChatHistory((prev) => [
           ...prev,
@@ -102,11 +115,12 @@ const Chat = ({
 
     socket.on("receive_private_message", handleReceive);
     return () => socket.off("receive_private_message", handleReceive);
-  }, [conversationId, currentUser.id]);
+    // eslint-disable-next-line
+  }, [conversationId, senderId]);
 
   // Send message or file
   const handleSend = () => {
-    if (!roomId || !currentUser?.id || !recipient?.id || !listing?.id) {
+    if (!roomId || !senderId || !recipientId || !listingId) {
       console.warn("Missing data, cannot send message", {
         roomId,
         currentUser,
@@ -121,9 +135,9 @@ const Chat = ({
     if (message.trim()) {
       const msgData = {
         room: roomId,
-        senderId: currentUser.id,
-        recipientId: recipient.id,
-        listingId: listing.id,
+        senderId,
+        recipientId,
+        listingId,
         message: message.trim(),
         senderName: currentUser.name,
         conversationId,
@@ -137,7 +151,7 @@ const Chat = ({
         {
           _id: Date.now().toString(),
           content: message.trim(),
-          senderId: currentUser.id,
+          senderId,
           senderName: currentUser.name,
           timestamp,
         },
@@ -150,9 +164,9 @@ const Chat = ({
         const fileData = reader.result.split(",")[1];
 
         const fileMsg = {
-          senderId: currentUser.id,
-          recipientId: recipient.id,
-          listingId: listing.id,
+          senderId,
+          recipientId,
+          listingId,
           fileName: file.name,
           fileData,
           fileType: file.type,
@@ -168,7 +182,7 @@ const Chat = ({
           {
             _id: Date.now().toString(),
             content: `file://${file.name}`,
-            senderId: currentUser.id,
+            senderId,
             senderName: currentUser.name,
             timestamp,
           },
@@ -181,13 +195,13 @@ const Chat = ({
     setFile(null);
   };
 
-  // Report a message
+  // Report a message (unchanged)
   const handleReport = (msg) => {
     setSelectedMessage(msg);
     setShowReportModal(true);
   };
 
-  // Review logic
+  // Review logic (unchanged)
   const handleReviewSubmitted = (review) => {
     setShowReviewModal(false);
     setShowReviewPrompt(false);
@@ -195,12 +209,12 @@ const Chat = ({
   };
 
   const checkReviewEligibility = async () => {
-    if (!currentUser?.id || !recipient?.id || !listing?.id) return;
+    if (!senderId || !recipientId || !listingId) return;
 
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
-        `http://localhost:3000/reviews/can-review/${recipient.id}/${listing.id}`,
+        `http://localhost:3000/reviews/can-review/${recipientId}/${listingId}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -228,8 +242,8 @@ const Chat = ({
           </div>
         ) : (
           chatHistory.map((msg) => (
-            <div key={msg._id} className={`mb-4 d-flex align-items-start position-relative ${msg.senderId === currentUser.id ? "justify-content-end" : "justify-content-start"}`}>
-              {msg.senderId !== currentUser.id && (
+            <div key={msg._id} className={`mb-4 d-flex align-items-start position-relative ${msg.senderId === senderId ? "justify-content-end" : "justify-content-start"}`}>
+              {msg.senderId !== senderId && (
                 <div className="position-absolute top-0 start-100 translate-middle-x mt-1">
                   <button
                     className="btn btn-light btn-sm border-0" title="Report this message"
@@ -242,23 +256,28 @@ const Chat = ({
                   </button>
                 </div>
               )}
-              <div className={`p-3 rounded-3 shadow-sm text-break ${msg.senderId === currentUser.id ? "bg-primary text-white" : "bg-light text-dark"}`} style={{ maxWidth: "70%" }}>
+              <div className={`p-3 rounded-3 shadow-sm text-break ${msg.senderId === senderId ? "bg-primary text-white" : "bg-light text-dark"}`} style={{ maxWidth: "70%" }}>
                 <div className="small fw-semibold mb-1">
-                  {msg.senderId === currentUser.id ? "You" : msg.senderName}
+                  {msg.senderId === senderId ? "You" : msg.senderName}
                 </div>
                 <div>
-                  {msg.content.startsWith("file://") ? (
-                    <a
-                      href={`http://localhost:3000/uploads/${msg.content.replace("file://", "")}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download
-                    >
-                      📎 {msg.content.replace("file://", "")}
-                    </a>
-                  ) : (
-                    msg.content
-                  )}
+                  {msg.isDeleted
+                    ? <i className="text-danger">[This message was deleted by admin]</i>
+                    : (
+                        msg.content.startsWith("file://")
+                          ? (
+                              <a
+                                href={`http://localhost:3000/uploads/${msg.content.replace("file://", "")}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download
+                              >
+                                📎 {msg.content.replace("file://", "")}
+                              </a>
+                            )
+                          : msg.content
+                      )
+                  }
                 </div>
                 <div className="text-end text-muted mt-2" style={{ fontSize: "0.75rem" }}>
                   {new Date(msg.timestamp).toLocaleTimeString([], {
@@ -272,7 +291,7 @@ const Chat = ({
         )}
       </div>
 
-      {/* Report Modal */}
+      {/* Report Modal (unchanged) */}
       {showReportModal && selectedMessage && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog">
@@ -330,13 +349,13 @@ const Chat = ({
             className="form-control rounded-start-pill px-4"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e) => (e.key === "Enter" && roomId ? handleSend() : null)}
             placeholder="Type your message..."
           />
           <button
             className="btn btn-primary rounded-end-pill px-4"
             onClick={handleSend}
-            disabled={!message.trim() && !file}
+            disabled={!message.trim() && !file || !roomId}
           >
             Send
           </button>

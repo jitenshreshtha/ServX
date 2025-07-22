@@ -28,7 +28,11 @@ const messageSchema = new mongoose.Schema(
         reason: { type: String },
         reportedAt: { type: Date, default: Date.now },
       },
-    ]
+    ],
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
