@@ -36,6 +36,9 @@ const Inbox = () => {
         }
 
         setConversations(data);
+        if (!location.state && !selectedConversation && data.length > 0) {
+          setSelectedConversation(data[0]);
+      }
       } catch (err) {
         console.error("Failed to fetch conversations:", err);
         setError("Failed to load conversations");

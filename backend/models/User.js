@@ -76,7 +76,10 @@ isVerified: {
 profileImage: {
   type: String,
   default: ""
-}
+},
+twoFactorEnabled: { type: Boolean, default: false },
+twoFactorSecret: { type: String }, // You may want to encrypt this!
+twoFactorTempSecret: { type: String } // Only during setup
 }, {
   timestamps: true
 });

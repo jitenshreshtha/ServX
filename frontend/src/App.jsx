@@ -22,6 +22,7 @@ import EditUserPage from "../pages/EditUserPage";
 import SupportCenterPage from "../pages/SupportCenterPage";
 import PaymentSuccessPage from "../pages/PaymentSuccessPage";
 import PaymentcancelledPage from "../pages/PaymentcancelledPage";
+import Enable2FA from '../pages/Enable2FA';
 
 function App() {
   return (
@@ -48,7 +49,7 @@ function App() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/inbox" element={<ProtectedRoute><InboxPage /></ProtectedRoute>} />
           <Route path="/auth/callback" element={<AuthCallback />} />
-         
+         <Route path="/enable-2fa" element={<ProtectedRoute><Enable2FA /></ProtectedRoute>} />
           <Route path="/profile/:userId" element={<ProfilePage />} />
           <Route path="/my-profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/reviews/:userId" element={<UserReviews />} />

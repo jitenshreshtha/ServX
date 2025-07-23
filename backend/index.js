@@ -9,6 +9,8 @@ const path = require('path');
 const Stripe = require('stripe');
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 
 //chat module
 const setupSocketIO = require("./controllers/chatController");
@@ -225,17 +227,78 @@ app.post("/signup", async (req, res, next) => {
   }
 });
 
+
+// 1. Start 2FA Setup: Generate secret & QR
+app.post('/2fa/setup', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Generate secret
+    const secret = speakeasy.generateSecret({ name: `ServX (${user.email})` });
+    user.twoFactorTempSecret = secret.base32;
+    await user.save();
+
+    QRCode.toDataURL(secret.otpauth_url, (err, qr) => {
+      if (err) return res.status(500).json({ error: 'QR code generation failed' });
+      res.json({ qrCode: qr, secret: secret.base32 });
+    });
+  } catch (err) {
+    res.status(500).json({ error: '2FA setup error' });
+  }
+});
+
+// 2. Verify 2FA setup (first OTP), enable 2FA for user
+app.post('/2fa/verify-setup', authenticateToken, async (req, res) => {
+  try {
+    const { token } = req.body;
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.twoFactorTempSecret) return res.status(400).json({ error: "No setup in progress" });
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorTempSecret,
+      encoding: 'base32',
+      token,
+      window: 1,
+    });
+
+    if (!verified) return res.status(400).json({ error: "Invalid token" });
+
+    user.twoFactorSecret = user.twoFactorTempSecret;
+    user.twoFactorEnabled = true;
+    user.twoFactorTempSecret = undefined;
+    await user.save();
+    res.json({ success: true,
+    twoFactorEnabled: user.twoFactorEnabled });
+  } catch (err) {
+    res.status(500).json({ error: '2FA verify setup error' });
+  }
+});
+
+// 3. Disable 2FA (optional, but recommended)
+app.post('/2fa/disable', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user || !user.twoFactorEnabled) return res.status(400).json({ error: "2FA not enabled" });
+    user.twoFactorEnabled = false;
+    user.twoFactorSecret = undefined;
+    await user.save();
+    res.json({ success: true, twoFactorEnabled: user.twoFactorEnabled });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not disable 2FA' });
+  }
+});
+
+// 4. Modified LOGIN: Step 1: Check password, check if MFA is enabled
 app.post("/login", async (req, res, next) => {
   try {
     const { email, password, isGoogleAuth } = req.body;
 
-    // Check if user exists
+    // Find user
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-    // If the account was created with Google
+    // Block normal login for Google-only accounts
     if (user.isGoogleAuth && !isGoogleAuth) {
       return res.status(401).json({
         error: "This account was created with Google. Please use Google Sign-In.",
@@ -243,21 +306,28 @@ app.post("/login", async (req, res, next) => {
       });
     }
 
-    // If not Google, validate password
+    // Validate password (for non-Google users)
     if (!user.isGoogleAuth) {
       const isMatch = await user.comparePassword(password);
-      if (!isMatch) {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
+      if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Generate token
+    // ---- 2FA Check ----
+    if (user.twoFactorEnabled) {
+      // Don't issue token yet! Tell frontend to prompt for OTP
+      return res.json({
+        success: true,
+        requires2FA: true,
+        userId: user._id
+      });
+    }
+
+    // Normal login if 2FA not enabled
     const token = jwt.sign(
       { userId: user._id, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
-
     res.json({
       success: true,
       message: "Login successful",
@@ -268,10 +338,53 @@ app.post("/login", async (req, res, next) => {
         email: user.email,
         skills: user.skills,
         isGoogleAuth: user.isGoogleAuth,
+        twoFactorEnabled: user.twoFactorEnabled, // Include 2FA status
       }
     });
   } catch (error) {
     next(error);
+  }
+});
+
+// 5. MFA Verification: Step 2: User submits OTP from authenticator app
+app.post('/2fa/verify-login', async (req, res) => {
+  try {
+    const { userId, token } = req.body;
+    const user = await User.findById(userId);
+
+    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      return res.status(400).json({ error: '2FA not enabled for this user' });
+    }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFactorSecret,
+      encoding: 'base32',
+      token,
+      window: 1, // +/- 30 seconds
+    });
+
+    if (!verified) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
+    // All good: issue token!
+    const jwtToken = jwt.sign(
+      { userId: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+    res.json({
+      success: true,
+      token: jwtToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        skills: user.skills,
+        isGoogleAuth: user.isGoogleAuth,
+        twoFactorEnabled: user.twoFactorEnabled, // Include 2FA status
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: '2FA login verify error' });
   }
 });
 
