@@ -152,7 +152,13 @@ function Header() {
                         <i className="bi bi-person me-2"></i>Profile
                       </Link>
                     </li>
-                    
+
+                    <li>
+                      <Link className="dropdown-item" to="/requests">
+                        <i className="bi bi-person-check me-2"></i>Requests
+                      </Link>
+                    </li>
+
                     {!isAdmin && (
                       <li>
                         <Link className="dropdown-item" to="/inbox">
@@ -222,9 +228,11 @@ function Header() {
           <NavLink to="/about" label="About Us" />
           <NavLink to="/contact" label="Contact Us" />
 
+
           {loggedIn && !isAdmin ? (
             <>
               <NavLink to="/create-listing" label="Create Listing" />
+              <NavLink to="/map" label="Map View" />
               <NavLink to="/support" label="Support" />
             </>
           ) : !loggedIn ? (

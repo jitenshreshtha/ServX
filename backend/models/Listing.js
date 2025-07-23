@@ -28,7 +28,7 @@ const listingSchema = new mongoose.Schema({
     required: [true, "Category is required"],
     enum: [
       "Web Development",
-      "Mobile Development", 
+      "Mobile Development",
       "Design",
       "Writing",
       "Marketing",
@@ -56,12 +56,28 @@ const listingSchema = new mongoose.Schema({
     enum: ["1-3 hours", "1 day", "2-3 days", "1 week", "2+ weeks"]
   },
   location: {
+    address: String,
     city: String,
     state: String,
     country: String,
+    coordinates: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point'
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        index: '2dsphere'
+      }
+    },
     isRemote: {
       type: Boolean,
       default: false
+    },
+    maxDistance: {
+      type: Number, // in kilometers
+      default: 50
     }
   },
   tags: [{

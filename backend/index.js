@@ -18,6 +18,8 @@ const User = require("./models/User");
 const Listing = require("./models/Listing");
 const Project = require("./models/Project");
 const Message = require("./models/Message");
+const NodeGeocoder = require('node-geocoder');
+const Request = require('./models/Request');
 const Conversation = require("./models/Conversation");
 const Otp = require("./models/Otp");
 const sendOTPEmail = require("./utils/sendEmail");
@@ -1767,6 +1769,428 @@ app.post("/create-checkout-session", authenticateToken, async (req, res) => {
   } catch (err) {
     console.error("Stripe Checkout Error:", err);
     res.status(500).json({ error: "Failed to create checkout session" });
+  }
+});
+
+// Geocoding Service----------------------------------------------------------------------------------
+
+
+const geocoder = NodeGeocoder({
+  provider: 'openstreetmap',
+  httpAdapter: 'https',
+  formatter: null
+});
+
+// Geocode address endpoint
+app.post("/geocode", authenticateToken, async (req, res) => {
+  try {
+    const { address } = req.body;
+    const geoData = await geocoder.geocode(address);
+    
+    if (geoData.length > 0) {
+      res.json({
+        success: true,
+        coordinates: [geoData[0].longitude, geoData[0].latitude],
+        formattedAddress: geoData[0].formattedAddress
+      });
+    } else {
+      res.status(404).json({ error: "Address not found" });
+    }
+  } catch (error) {
+    res.status(500).json({ error: "Geocoding failed" });
+  }
+});
+
+// Get listings within radius
+// In index.js, replace the nearby listings endpoint:
+app.get("/listings/nearby", async (req, res) => {
+  try {
+    const { lat, lng, radius = 50, limit = 20 } = req.query;
+    console.log(`🗺️ Searching nearby listings: lat=${lat}, lng=${lng}, radius=${radius}km`);
+    
+    // Build filter for active listings
+    const filter = { isActive: true };
+    
+    // If coordinates provided, add geospatial query (when implemented)
+    if (lat && lng) {
+      // For now, just return all listings
+      // TODO: Implement actual geospatial query when listing coordinates are available
+      console.log(`🗺️ Location-based search requested for [${lat}, ${lng}] within ${radius}km`);
+    }
+    
+    const listings = await Listing.find(filter)
+      .populate("author", "name email rating profileImage")
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+    
+    console.log(`✅ Found ${listings.length} listings`);
+    res.json({ success: true, listings });
+    
+  } catch (error) {
+    console.error('❌ Error fetching nearby listings:', error);
+    res.status(500).json({ error: "Failed to fetch nearby listings: " + error.message });
+  }
+});
+
+// Update user location
+app.put("/profile/location", authenticateToken, async (req, res) => {
+  try {
+    const { address, coordinates, isLocationPublic } = req.body;
+    
+    const updateData = {
+      "location.address": address,
+      "location.coordinates.coordinates": coordinates,
+      "location.isLocationPublic": isLocationPublic
+    };
+
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      updateData,
+      { new: true }
+    ).select("-password");
+
+    res.json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update location" });
+  }
+});
+
+
+// Send a connection request
+app.post('/requests', authenticateToken, async (req, res, next) => {
+  try {
+    const { recipientId, listingId, message, requestType = 'collaboration' } = req.body;
+    const senderId = req.user.userId;
+
+    // Validation
+    if (!recipientId || !listingId) {
+      return res.status(400).json({ error: 'Recipient and listing are required' });
+    }
+
+    if (senderId === recipientId) {
+      return res.status(400).json({ error: 'Cannot send request to yourself' });
+    }
+
+    // Check if recipient and listing exist
+    const [recipient, listing] = await Promise.all([
+      User.findById(recipientId),
+      Listing.findById(listingId)
+    ]);
+
+    if (!recipient) {
+      return res.status(404).json({ error: 'Recipient not found' });
+    }
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    // Check for existing pending request
+    const existingRequest = await Request.findOne({
+      sender: senderId,
+      recipient: recipientId,
+      listing: listingId,
+      status: 'pending'
+    });
+
+    if (existingRequest) {
+      return res.status(409).json({ error: 'Request already sent and pending' });
+    }
+
+    // Create the request
+    const request = new Request({
+      sender: senderId,
+      recipient: recipientId,
+      listing: listingId,
+      message: message?.trim(),
+      requestType
+    });
+
+    await request.save();
+
+    // Populate for response
+    await request.populate([
+      { path: 'sender', select: 'name email rating' },
+      { path: 'recipient', select: 'name email' },
+      { path: 'listing', select: 'title skillOffered skillWanted' }
+    ]);
+
+    res.status(201).json({
+      success: true,
+      message: 'Request sent successfully',
+      request
+    });
+
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ error: 'Request already exists' });
+    }
+    next(error);
+  }
+});
+
+// Get received requests (for the current user)
+app.get('/requests/received', authenticateToken, async (req, res, next) => {
+  try {
+    const { status = 'pending', page = 1, limit = 10 } = req.query;
+    const userId = req.user.userId;
+
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(50, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const filter = { recipient: userId };
+    if (status !== 'all') {
+      filter.status = status;
+    }
+
+    const [requests, totalCount] = await Promise.all([
+      Request.find(filter)
+        .populate('sender', 'name email rating profileImage')
+        .populate('listing', 'title skillOffered skillWanted category')
+        .sort({ createdAt: -1 })
+        .limit(itemsPerPage)
+        .skip(skip),
+      Request.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    res.json({
+      success: true,
+      requests,
+      pagination: {
+        current: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get sent requests (by the current user)
+app.get('/requests/sent', authenticateToken, async (req, res, next) => {
+  try {
+    const { status = 'all', page = 1, limit = 10 } = req.query;
+    const userId = req.user.userId;
+
+    const currentPage = Math.max(1, parseInt(page));
+    const itemsPerPage = Math.min(50, Math.max(1, parseInt(limit)));
+    const skip = (currentPage - 1) * itemsPerPage;
+
+    const filter = { sender: userId };
+    if (status !== 'all') {
+      filter.status = status;
+    }
+
+    const [requests, totalCount] = await Promise.all([
+      Request.find(filter)
+        .populate('recipient', 'name email rating profileImage')
+        .populate('listing', 'title skillOffered skillWanted category')
+        .sort({ createdAt: -1 })
+        .limit(itemsPerPage)
+        .skip(skip),
+      Request.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+    res.json({
+      success: true,
+      requests,
+      pagination: {
+        current: currentPage,
+        pages: totalPages,
+        total: totalCount,
+        hasNext: currentPage < totalPages,
+        hasPrev: currentPage > 1
+      }
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Respond to a request (accept/decline)
+app.put('/requests/:id/respond', authenticateToken, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { action, responseMessage } = req.body; // action: 'accept' | 'decline'
+    const userId = req.user.userId;
+
+    if (!['accept', 'decline'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Use "accept" or "decline"' });
+    }
+
+    const request = await Request.findById(id)
+      .populate('sender', 'name email')
+      .populate('listing', 'title');
+
+    if (!request) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Check if current user is the recipient
+    if (request.recipient.toString() !== userId) {
+      return res.status(403).json({ error: 'Not authorized to respond to this request' });
+    }
+
+    // Check if request is still pending
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Request has already been responded to' });
+    }
+
+    // Update request
+    request.status = action === 'accept' ? 'accepted' : 'declined';
+    request.responseMessage = responseMessage?.trim();
+    request.respondedAt = new Date();
+
+    await request.save();
+
+    // If accepted, create or find conversation
+    let conversation = null;
+    if (action === 'accept') {
+      conversation = await Conversation.findOne({
+        participants: { $all: [request.sender._id, userId], $size: 2 },
+        listing: request.listing._id
+      });
+
+      if (!conversation) {
+        conversation = new Conversation({
+          participants: [request.sender._id, userId],
+          listing: request.listing._id
+        });
+        await conversation.save();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Request ${action}ed successfully`,
+      request,
+      conversation
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cancel a sent request
+app.delete('/requests/:id', authenticateToken, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    const request = await Request.findById(id);
+
+    if (!request) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Check if current user is the sender
+    if (request.sender.toString() !== userId) {
+      return res.status(403).json({ error: 'Not authorized to cancel this request' });
+    }
+
+    // Only allow cancelling pending requests
+    if (request.status !== 'pending') {
+      return res.status(400).json({ error: 'Can only cancel pending requests' });
+    }
+
+    request.status = 'cancelled';
+    await request.save();
+
+    res.json({
+      success: true,
+      message: 'Request cancelled successfully'
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get request count for notifications
+app.get('/requests/count', authenticateToken, async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+
+    const pendingCount = await Request.countDocuments({
+      recipient: userId,
+      status: 'pending'
+    });
+
+    res.json({
+      success: true,
+      pendingRequests: pendingCount
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Check if request can be sent to a user for a listing
+app.get('/requests/can-send/:recipientId/:listingId', authenticateToken, async (req, res, next) => {
+  try {
+    const { recipientId, listingId } = req.params;
+    const senderId = req.user.userId;
+
+    if (senderId === recipientId) {
+      return res.json({
+        success: true,
+        canSend: false,
+        reason: 'Cannot send request to yourself'
+      });
+    }
+
+    // Check for existing requests
+    const existingRequest = await Request.findOne({
+      sender: senderId,
+      recipient: recipientId,
+      listing: listingId,
+      status: { $in: ['pending', 'accepted'] }
+    });
+
+    // Check for existing conversation
+    const existingConversation = await Conversation.findOne({
+      participants: { $all: [senderId, recipientId], $size: 2 },
+      listing: listingId
+    });
+
+    let canSend = true;
+    let reason = '';
+
+    if (existingConversation) {
+      canSend = false;
+      reason = 'Conversation already exists';
+    } else if (existingRequest) {
+      canSend = false;
+      reason = existingRequest.status === 'pending' 
+        ? 'Request already sent and pending'
+        : 'Request already accepted';
+    }
+
+    res.json({
+      success: true,
+      canSend,
+      reason,
+      existingRequest: existingRequest ? {
+        id: existingRequest._id,
+        status: existingRequest.status,
+        createdAt: existingRequest.createdAt
+      } : null
+    });
+
+  } catch (error) {
+    next(error);
   }
 });
 

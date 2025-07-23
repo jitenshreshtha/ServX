@@ -84,6 +84,38 @@ function CreateListing({ mode = "user", onSuccess }) {
     }
   };
 
+  // Add location geocoding to CreateListing.jsx
+  const handleLocationChange = async () => {
+    if (formData.location.address) {
+      try {
+        const response = await fetch('http://localhost:3000/geocode', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ address: formData.location.address })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          setFormData(prev => ({
+            ...prev,
+            location: {
+              ...prev.location,
+              coordinates: {
+                type: 'Point',
+                coordinates: data.coordinates
+              }
+            }
+          }));
+        }
+      } catch (error) {
+        console.error('Geocoding failed:', error);
+      }
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     if (name.startsWith("location.")) {

@@ -36,8 +36,19 @@ const userSchema = new mongoose.Schema({
     state: String,
     country: String,
     coordinates: {
-      latitude: Number,
-      longitude: Number
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point'
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: [0, 0]
+      }
+    },
+    isLocationPublic: {
+      type: Boolean,
+      default: false
     }
   },
   profileImage: {
@@ -60,23 +71,23 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-role: {
-  type: String,
-  enum: ["user", "admin"],
-  default: "user"
-},
-isGoogleAuth: {
-  type: Boolean,
-  default: false
-},
-isVerified: {
-  type: Boolean,
-  default: false
-},
-profileImage: {
-  type: String,
-  default: ""
-}
+  role: {
+    type: String,
+    enum: ["user", "admin"],
+    default: "user"
+  },
+  isGoogleAuth: {
+    type: Boolean,
+    default: false
+  },
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
+  profileImage: {
+    type: String,
+    default: ""
+  }
 }, {
   timestamps: true
 });
@@ -85,9 +96,9 @@ profileImage: {
 userSchema.index({ "location.coordinates": "2dsphere" });
 
 // Hash password before saving
-userSchema.pre("save", async function(next) {
+userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
@@ -98,14 +109,14 @@ userSchema.pre("save", async function(next) {
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 //Calculate and update user Rating
-userSchema.statics.updateUserRating = async function(userId) {
+userSchema.statics.updateUserRating = async function (userId) {
   const Review = mongoose.model('Review');
-  
+
   const result = await Review.aggregate([
     { $match: { reviewee: new mongoose.Types.ObjectId(userId), status: 'active' } },
     {
@@ -116,34 +127,34 @@ userSchema.statics.updateUserRating = async function(userId) {
       }
     }
   ]);
-  
+
   const rating = result.length > 0 ? {
     average: Math.round(result[0].averageRating * 10) / 10, // Round to 1 decimal
     count: result[0].totalReviews
   } : { average: 0, count: 0 };
-  
+
   await this.findByIdAndUpdate(userId, { rating });
   return rating;
 };
 
 // Remove password from JSON output
-userSchema.methods.toJSON = function() {
+userSchema.methods.toJSON = function () {
   const userObject = this.toObject();
   delete userObject.password;
   return userObject;
 };
 // Add this to your User model
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   // Skip password validation for Google auth users
   if (this.isGoogleAuth && !this.isModified('password')) {
     return next();
   }
-  
+
   // Regular password validation for non-Google users
   if (!this.isGoogleAuth && (!this.password || this.password.length < 6)) {
     throw new Error('Password must be at least 6 characters');
   }
-  
+
   next();
 });
 

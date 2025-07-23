@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import socket from "../src/socket";
 import ReviewModal from './ReviewModal';
+import RequestModal from './RequestModal';
 import { MdReport } from "react-icons/md";
 
 const getId = (obj) => obj?.id || obj?._id || "";
@@ -27,13 +28,79 @@ const Chat = ({
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
-  // Prevent render if required IDs or roomId are missing
+  // New request-related state
+  const [hasPermissionToChat, setHasPermissionToChat] = useState(false);
+  const [requestStatus, setRequestStatus] = useState(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState("");
+
+  // Prevent render if required IDs are missing
   if (!senderId || !recipientId || !listingId) {
     return <div>Loading chat...</div>;
   }
 
+  // Check if user has permission to chat (conversation exists or request is accepted)
+  useEffect(() => {
+    const checkChatPermission = async () => {
+      if (!senderId || !recipientId || !listingId) return;
+      
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('token');
+        
+        // First check if conversation already exists
+        if (conversationId) {
+          setHasPermissionToChat(true);
+          setLoading(false);
+          return;
+        }
+
+        // Check if there's an accepted request or existing conversation
+        const response = await fetch(
+          `http://localhost:3000/requests/can-send/${recipientId}/${listingId}`,
+          {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to check chat permission');
+        }
+
+        const data = await response.json();
+        
+        if (data.existingRequest && data.existingRequest.status === 'accepted') {
+          setHasPermissionToChat(true);
+          setRequestStatus('accepted');
+        } else if (data.existingRequest && data.existingRequest.status === 'pending') {
+          setHasPermissionToChat(false);
+          setRequestStatus('pending');
+          setPermissionError(`You have a pending request. Please wait for ${recipient?.name} to respond.`);
+        } else if (data.canSend) {
+          setHasPermissionToChat(false);
+          setRequestStatus('none');
+          setPermissionError(`You need to send a connection request to ${recipient?.name} before you can chat.`);
+        } else {
+          setHasPermissionToChat(false);
+          setPermissionError(data.reason || 'Cannot start conversation');
+        }
+
+      } catch (error) {
+        console.error('Error checking chat permission:', error);
+        setPermissionError('Unable to verify chat permissions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkChatPermission();
+  }, [senderId, recipientId, listingId, conversationId, recipient?.name]);
+
   // Debug: socket connection status
   useEffect(() => {
+    if (!hasPermissionToChat) return;
+
     socket.on("connect", () => {
       console.log("Socket connected with id:", socket.id);
     });
@@ -49,11 +116,12 @@ const Chat = ({
       socket.off("disconnect");
       socket.off("connect_error");
     };
-  }, []);
+  }, [hasPermissionToChat]);
 
   // Join room on mount or when participants/listing changes
   useEffect(() => {
-    if (!senderId || !recipientId || !listingId) return;
+    if (!hasPermissionToChat || !senderId || !recipientId || !listingId) return;
+    
     if (chatHistory.length >= 3) {
       checkReviewEligibility();
     }
@@ -62,11 +130,12 @@ const Chat = ({
     setRoomId(room);
     socket.emit("join_room", room);
     console.log("Joined room", room);
-    // eslint-disable-next-line
-  }, [chatHistory.length, senderId, recipientId, listingId]);
+  }, [hasPermissionToChat, chatHistory.length, senderId, recipientId, listingId]);
 
   // Load message history on conversation change
   useEffect(() => {
+    if (!hasPermissionToChat) return;
+
     const fetchMessages = async () => {
       const token = localStorage.getItem("token");
       const res = await fetch(
@@ -88,13 +157,13 @@ const Chat = ({
     };
 
     if (conversationId) fetchMessages();
-    // eslint-disable-next-line
-  }, [conversationId]);
+  }, [conversationId, hasPermissionToChat]);
 
   // Socket: Receive new message from backend
   useEffect(() => {
+    if (!hasPermissionToChat) return;
+
     const handleReceive = (data) => {
-      // Debug: Show all incoming socket messages
       console.log("Socket receive_private_message:", data);
       if (
         data.conversationId === conversationId &&
@@ -115,18 +184,12 @@ const Chat = ({
 
     socket.on("receive_private_message", handleReceive);
     return () => socket.off("receive_private_message", handleReceive);
-    // eslint-disable-next-line
-  }, [conversationId, senderId]);
+  }, [conversationId, senderId, hasPermissionToChat]);
 
   // Send message or file
   const handleSend = () => {
-    if (!roomId || !senderId || !recipientId || !listingId) {
-      console.warn("Missing data, cannot send message", {
-        roomId,
-        currentUser,
-        recipient,
-        listing,
-      });
+    if (!hasPermissionToChat || !roomId || !senderId || !recipientId || !listingId) {
+      console.warn("Missing permission or data, cannot send message");
       return;
     }
 
@@ -195,13 +258,20 @@ const Chat = ({
     setFile(null);
   };
 
-  // Report a message (unchanged)
+  // Handle request sent successfully
+  const handleRequestSent = () => {
+    setShowRequestModal(false);
+    setRequestStatus('pending');
+    setPermissionError(`Request sent to ${recipient?.name}. Please wait for them to respond.`);
+  };
+
+  // Report a message
   const handleReport = (msg) => {
     setSelectedMessage(msg);
     setShowReportModal(true);
   };
 
-  // Review logic (unchanged)
+  // Review logic
   const handleReviewSubmitted = (review) => {
     setShowReviewModal(false);
     setShowReviewPrompt(false);
@@ -233,12 +303,97 @@ const Chat = ({
     }
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="d-flex flex-column h-100 border rounded shadow-sm">
+        <div className="flex-grow-1 d-flex align-items-center justify-content-center p-4">
+          <div className="text-center">
+            <div className="spinner-border text-primary mb-3" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="text-muted">Checking chat permissions...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No permission to chat - show request interface
+  if (!hasPermissionToChat) {
+    return (
+      <div className="d-flex flex-column h-100 border rounded shadow-sm">
+        <div className="flex-grow-1 d-flex align-items-center justify-content-center p-4">
+          <div className="text-center">
+            <div className="mb-4">
+              <i className="bi bi-chat-x display-1 text-muted"></i>
+            </div>
+            
+            <h5 className="mb-3">Connection Required</h5>
+            <p className="text-muted mb-4">{permissionError}</p>
+
+            {requestStatus === 'none' && (
+              <button
+                className="btn btn-primary"
+                onClick={() => setShowRequestModal(true)}
+              >
+                <i className="bi bi-person-plus me-2"></i>
+                Send Connection Request
+              </button>
+            )}
+
+            {requestStatus === 'pending' && (
+              <div className="alert alert-warning">
+                <i className="bi bi-clock me-2"></i>
+                <strong>Request Pending</strong>
+                <br />
+                <small>Waiting for {recipient?.name} to respond to your connection request.</small>
+              </div>
+            )}
+
+            <div className="mt-4">
+              <button 
+                className="btn btn-outline-secondary"
+                onClick={() => window.history.back()}
+              >
+                <i className="bi bi-arrow-left me-2"></i>
+                Go Back
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Request Modal */}
+        {showRequestModal && (
+          <RequestModal
+            isOpen={showRequestModal}
+            onClose={() => setShowRequestModal(false)}
+            recipient={{
+              id: recipientId,
+              name: recipient?.name
+            }}
+            listing={{
+              id: listingId,
+              title: listing?.title
+            }}
+            onRequestSent={handleRequestSent}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Normal chat interface (when user has permission)
   return (
     <div className="d-flex flex-column h-100 border rounded shadow-sm">
       <div className="flex-grow-1 overflow-auto p-4 bg-white" style={{ maxHeight: "500px" }}>
         {chatHistory.length === 0 ? (
           <div className="text-center text-muted mt-5">
-            Type a message below to start the conversation.
+            <div className="mb-3">
+              <i className="bi bi-chat-dots display-4 text-muted"></i>
+            </div>
+            <h6>Start your conversation with {recipient?.name}</h6>
+            <p>Type a message below to begin chatting.</p>
           </div>
         ) : (
           chatHistory.map((msg) => (
@@ -291,7 +446,7 @@ const Chat = ({
         )}
       </div>
 
-      {/* Report Modal (unchanged) */}
+      {/* Report Modal */}
       {showReportModal && selectedMessage && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog">
@@ -336,6 +491,7 @@ const Chat = ({
         </div>
       )}
 
+      {/* Chat Input Area */}
       <div className="border-top p-3 bg-light">
         <div className="input-group mb-2">
           <input
