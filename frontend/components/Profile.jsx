@@ -281,7 +281,14 @@ function Profile() {
                 >
                   <i className="bi bi-pencil me-2"></i>Edit Profile
                 </button>
+                
               )}
+              <button 
+                  className="btn btn-outline-secondary w-100 mt-2"
+                  onClick={() => navigate("/enable-2fa")}
+                >
+                  Manage Two-Factor Authentication (2FA)
+                </button>
             </div>
           </div>
         </div>
