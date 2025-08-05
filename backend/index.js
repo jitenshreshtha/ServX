@@ -250,12 +250,20 @@ app.post('/2fa/setup', authenticateToken, async (req, res) => {
   }
 });
 
-// 2. Verify 2FA setup (first OTP), enable 2FA for user
 app.post('/2fa/verify-setup', authenticateToken, async (req, res) => {
   try {
     const { token } = req.body;
+    console.log("→ Received token:", token);
+    console.log("→ Authenticated user ID:", req.user.userId);
+
     const user = await User.findById(req.user.userId);
-    if (!user || !user.twoFactorTempSecret) return res.status(400).json({ error: "No setup in progress" });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    console.log("→ User found:", user.email);
+    console.log("→ Temp secret present?", !!user.twoFactorTempSecret);
+
+    if (!user.twoFactorTempSecret)
+      return res.status(400).json({ error: "No setup in progress" });
 
     const verified = speakeasy.totp.verify({
       secret: user.twoFactorTempSecret,
@@ -270,9 +278,10 @@ app.post('/2fa/verify-setup', authenticateToken, async (req, res) => {
     user.twoFactorEnabled = true;
     user.twoFactorTempSecret = undefined;
     await user.save();
-    res.json({ success: true,
-    twoFactorEnabled: user.twoFactorEnabled });
+
+    res.json({ success: true, twoFactorEnabled: true });
   } catch (err) {
+    console.error("❌ 2FA verify setup error:", err);
     res.status(500).json({ error: '2FA verify setup error' });
   }
 });
