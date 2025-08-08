@@ -1,6 +1,12 @@
 const mongoose = require("mongoose");
 
 const projectSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    default: function() {
+      return `Skill Exchange - ${new Date().toLocaleDateString()}`;
+    }
+  },
   listing: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Listing",
@@ -28,7 +34,7 @@ const projectSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["pending", "accepted", "in_progress", "completed", "cancelled", "disputed"],
+    enum: ["started", "in_progress", "completed", "cancelled"],
     default: "pending"
   },
   timeline: {
@@ -36,6 +42,17 @@ const projectSchema = new mongoose.Schema({
     expectedEndDate: Date,
     actualEndDate: Date
   },
+  progress: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 100
+  },
+  notes: [{
+    content: String,
+    author: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    createdAt: { type: Date, default: Date.now }
+  }],
   milestones: [{
     title: String,
     description: String,

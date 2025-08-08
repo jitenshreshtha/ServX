@@ -2039,6 +2039,7 @@ app.post('/requests', authenticateToken, async (req, res, next) => {
     next(err);
   }
 });
+
 // Get received requests (for the current user)
 app.get('/requests/received', authenticateToken, async (req, res, next) => {
   try {
@@ -2282,6 +2283,137 @@ app.get('/requests/can-send/:recipientId/:listingId', authenticateToken, async (
 
   } catch (err) {
     next(err);
+  }
+});
+
+// Get user's projects
+app.get("/my-projects", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log("Fetching projects for user:", userId); 
+
+    const projects = await Project.find({
+      $or: [{ requester: userId }, { provider: userId }]
+    })
+      .populate('requester', 'name email')
+      .populate('provider', 'name email')
+      .populate('listing', 'title skillOffered skillWanted')
+      .sort({ updatedAt: -1 });
+
+    console.log("Found projects:", projects.length); // Debug log
+    res.json({ success: true, projects });
+  } catch (error) {
+    console.error("Error fetching projects:", error); // This will show the real error
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+// Update project status
+app.put("/projects/:id/status", authenticateToken, async (req, res) => {
+  try {
+    const { status, progress, note } = req.body;
+    const userId = req.user.userId;
+
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+
+    // Check if user is part of this project
+    if (project.requester.toString() !== userId && project.provider.toString() !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Update status and progress
+    if (status) project.status = status;
+    if (progress !== undefined) project.progress = progress;
+
+    // Add note if provided
+    if (note) {
+      project.notes.push({
+        content: note,
+        author: userId
+      });
+    }
+
+    await project.save();
+    await project.populate(['requester', 'provider', 'listing']);
+
+    res.json({ success: true, project });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update project" });
+  }
+});
+
+// Create project from accepted request
+app.post("/projects/from-request", authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    const userId = req.user.userId;
+    console.log("Creating project from request:", requestId, "for user:", userId); // Debug log
+
+    const request = await Request.findById(requestId)
+      .populate('sender')
+      .populate('recipient')
+      .populate('listing');
+
+    if (!request) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+    
+    console.log("Found request:", request.status); // Debug log
+
+    if (request.status !== 'accepted') {
+      return res.status(400).json({ error: "Request must be accepted first" });
+    }
+
+    // Check if user is involved in this request
+    if (request.sender._id.toString() !== userId && request.recipient._id.toString() !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    
+    }
+
+    // Check if project already exists for this request
+    const existingProject = await Project.findOne({
+      listing: request.listing._id,
+      requester: request.sender._id,
+      provider: request.recipient._id
+    });
+    
+    if (existingProject) {
+      console.log("Project already exists:", existingProject._id); // Debug log
+      await existingProject.populate(['requester', 'provider', 'listing']);
+      return res.json({ 
+        success: true, 
+        project: existingProject, 
+        message: "Project already exists" 
+      });
+    }
+
+    // Create simple project
+    const project = new Project({
+      title: `${request.listing.title} - Collaboration`,
+      listing: request.listing._id,
+      requester: request.sender._id,
+      provider: request.recipient._id,
+      skills: {
+        offered: request.listing.skillOffered,
+        wanted: request.listing.skillWanted
+      },
+      status: "started",
+      progress: 0,
+      notes: [{
+        content: "Project created from accepted collaboration request",
+        author: userId
+      }]
+    });
+
+    await project.save();
+    await project.populate(['requester', 'provider', 'listing']);
+
+    console.log("Created new project:", project._id); // Debug log
+    res.json({ success: true, project });
+  } catch (error) {
+    console.error("Error creating project:", error); // This will show the real error
+    res.status(500).json({ error: "Failed to create project" });
   }
 });
 

@@ -16,6 +16,7 @@ import InboxPage from "../pages/InboxPage";
 import MapPage from '../pages/MapPage';
 import RequestsPage from "../pages/RequestsPage";
 import RequestModal from "../components/RequestModal";
+import SimpleProjectsPage from "../pages/SimpleProjectsPage";
 import AuthCallback from '../components/AuthCallback';
 import EditListingPage from "../pages/EditListingPage";
 import UserReviews from '../components/UserReviews';
@@ -38,6 +39,7 @@ function App() {
           {/* Protected Routes - Require Authentication */}
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           <Route path="/my-listings" element={<ProtectedRoute><MyListingsPage /></ProtectedRoute>} />
+          <Route path="/my-projects" element={<ProtectedRoute><SimpleProjectsPage /></ProtectedRoute>} />
           <Route path="/create-listing" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
           <Route path="/requests" element={<ProtectedRoute><RequestsPage /></ProtectedRoute>} />
           <Route path="/admin-login" element={<AdminLoginPage />} />

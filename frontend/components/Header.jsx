@@ -233,6 +233,7 @@ function Header() {
             <>
               <NavLink to="/create-listing" label="Create Listing" />
               <NavLink to="/map" label="Map View" />
+              <NavLink to="/my-projects" label="My Projects" />
               <NavLink to="/support" label="Support" />
             </>
           ) : !loggedIn ? (

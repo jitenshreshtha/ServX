@@ -80,6 +80,27 @@ const RequestsPage = () => {
       
       if (data.success) {
         alert(`Request ${action}ed successfully!`);
+
+        if (action === 'accept') {
+          try {
+            const projectResponse = await fetch('http://localhost:3000/projects/from-request', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({ requestId: requestId })
+            });
+
+            const projectData = await projectResponse.json();
+            if (projectData.success) {
+              alert('Project created! You can now track this collaboration in "My Projects"');
+            }
+          } catch (projectError) {
+            console.error('Error creating project:', projectError);
+            // Don't show error to user - request was still accepted successfully
+          }
+        }
         
         if (action === 'accept' && data.conversation) {
           // Navigate to chat
@@ -293,13 +314,45 @@ const RequestsPage = () => {
                     )}
 
                     {request.status === 'accepted' && (
-                      <button
-                        className="btn btn-primary btn-sm w-100"
-                        onClick={() => navigate('/inbox')}
-                      >
-                        <i className="bi bi-chat-dots me-1"></i>
-                        Go to Chat
-                      </button>
+                      <div className="mt-2">
+                        <button
+                          className="btn btn-primary btn-sm w-100 mb-2"
+                          onClick={() => navigate('/inbox')}
+                        >
+                          <i className="bi bi-chat-dots me-1"></i>
+                          Go to Chat
+                        </button>
+
+                        {/* 🆕 ADD THIS BUTTON */}
+                        <button
+                          className="btn btn-outline-success btn-sm w-100"
+                          onClick={async () => {
+                            try {
+                              const token = localStorage.getItem('token');
+                              const response = await fetch('http://localhost:3000/projects/from-request', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({ requestId: request._id })
+                              });
+
+                              const data = await response.json();
+                              if (data.success) {
+                                alert('Project created! Check "My Projects" to track this collaboration.');
+                              } else {
+                                alert(data.message || 'Project may already exist');
+                              }
+                            } catch (error) {
+                              alert('Error creating project');
+                            }
+                          }}
+                        >
+                          <i className="bi bi-kanban me-1"></i>
+                          Create Project
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
