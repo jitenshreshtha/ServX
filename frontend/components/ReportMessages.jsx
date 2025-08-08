@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import AdminSidebar from './admin/AdminSidebar';
 
 const ReportedMessages = () => {
   const [reports, setReports] = useState([]);
@@ -12,7 +13,11 @@ const ReportedMessages = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        setReports(data.reported || []);
+        const arr =
+          Array.isArray(data?.reported) ? data.reported :
+          Array.isArray(data?.reports)  ? data.reports  :
+          (Array.isArray(data) ? data : []);
+        setReports(arr);
       } catch (err) {
         console.error("Failed to load reports:", err);
         setReports([]);
@@ -20,25 +25,22 @@ const ReportedMessages = () => {
         setLoading(false);
       }
     };
-
     fetchReports();
   }, []);
 
-  // PATCH endpoint for soft delete (message is marked isDeleted:true)
   const handleDelete = async (id) => {
-  const token = localStorage.getItem("adminToken");
-  if (!window.confirm("Delete this message?")) return;
-  try {
-    await fetch(`http://localhost:3000/admin/messages/${id}/delete`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setReports(reports.filter((r) => r._id !== id));
-  } catch {
-    alert("Error deleting message");
-  }
-};
-
+    const token = localStorage.getItem("adminToken");
+    if (!window.confirm("Delete this message?")) return;
+    try {
+      await fetch(`http://localhost:3000/admin/messages/${id}/delete`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReports(prev => prev.filter((r) => r._id !== id));
+    } catch {
+      alert("Error deleting message");
+    }
+  };
 
   const handleDismiss = async (id) => {
     const token = localStorage.getItem("adminToken");
@@ -47,50 +49,72 @@ const ReportedMessages = () => {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      setReports(reports.filter((r) => r._id !== id));
+      setReports(prev => prev.filter((r) => r._id !== id));
     } catch {
       alert("Error dismissing report");
     }
   };
 
-  if (loading) return <p>Loading reported messages...</p>;
-
   return (
-    <div>
-      <h2>Reported Messages</h2>
-      {reports.length === 0 ? (
-        <p>No reported messages.</p>
-      ) : (
-        <table className="table table-bordered">
-          <thead>
-            <tr>
-              <th>Sender</th>
-              <th>Message</th>
-              <th>Reason</th>
-              <th>Reported At</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reports.map((msg) => (
-              <tr key={msg._id}>
-                <td>{msg.sender?.name || 'Unknown'}</td>
-                <td>{msg.content}</td>
-                <td>
-                  {msg.reports?.map((r, i) => (
-                    <div key={i}>{r.reason}</div>
-                  ))}
-                </td>
-                <td>{new Date(msg.createdAt).toLocaleString()}</td>
-                <td>
-                  <button className="btn btn-sm btn-danger me-2" onClick={() => handleDelete(msg._id)}>Delete</button>
-                  <button className="btn btn-sm btn-secondary" onClick={() => handleDismiss(msg._id)}>Dismiss</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    <div className="container-fluid">
+      <div className="row">
+        {/* Sidebar */}
+        <div className="col-md-3 col-lg-2">
+          <AdminSidebar active="reports" />
+        </div>
+
+        {/* Main */}
+        <main className="col-md-9 col-lg-10 p-4">
+          <h2 className="mb-4">Reported Messages</h2>
+          <div className="card shadow-sm">
+            <div className="card-body">
+              {loading ? (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-primary" role="status" />
+                </div>
+              ) : reports.length === 0 ? (
+                <p>No reported messages.</p>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table table-bordered table-hover">
+                    <thead className="table-light">
+                      <tr>
+                        <th>Sender</th>
+                        <th>Message</th>
+                        <th>Reason</th>
+                        <th>Reported At</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reports.map((msg) => (
+                        <tr key={msg._id}>
+                          <td>{msg.sender?.name || 'Unknown'}</td>
+                          <td>{msg.content}</td>
+                          <td>
+                            {(msg.reports || []).map((r, i) => (
+                              <span key={i} className="badge bg-warning text-dark me-1">
+                                {r.reason || 'Other'}
+                              </span>
+                            ))}
+                          </td>
+                          <td>{new Date(msg.createdAt).toLocaleString()}</td>
+                          <td>
+                            <div className="btn-group">
+                              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(msg._id)}>Delete</button>
+                              <button className="btn btn-sm btn-secondary" onClick={() => handleDismiss(msg._id)}>Dismiss</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 };
