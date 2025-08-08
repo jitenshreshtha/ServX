@@ -48,7 +48,7 @@ const RequestModal = ({
         setFormData({ message: "", requestType: "collaboration" });
       } else {
         throw new Error(data.error || "Failed to send request");
-      }
+      }P
     } catch (error) {
       console.error("Error sending request:", error);
       alert("Failed to send request: " + error.message);
