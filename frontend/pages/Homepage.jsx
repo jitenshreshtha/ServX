@@ -3,9 +3,9 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import Pagination from "../components/Pagination";
 import RequestModal from "../components/RequestModal";
-import StarRating from '../components/StarRating';
+import StarRating from "../components/StarRating";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from '../src/context/Authcontext';
+import { useAuth } from "../src/context/Authcontext";
 import "bootstrap/dist/css/bootstrap.min.css";
 
 function Homepage() {
@@ -23,7 +23,7 @@ function Homepage() {
     skillWanted: "",
     locationQuery: "",
     category: "",
-    search: ""
+    search: "",
   });
 
   const { currentUser } = useAuth();
@@ -34,29 +34,35 @@ function Homepage() {
   }, [currentPage, filters]);
 
   const checkLoginStatus = () => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     setLoggedIn(!!token);
   };
 
   useEffect(() => {
     checkLoginStatus();
     const handleLoginStateChange = () => checkLoginStatus();
-    window.addEventListener('loginStateChange', handleLoginStateChange);
-    return () => window.removeEventListener('loginStateChange', handleLoginStateChange);
+    window.addEventListener("loginStateChange", handleLoginStateChange);
+    return () =>
+      window.removeEventListener("loginStateChange", handleLoginStateChange);
   }, []);
 
   const fetchListings = async () => {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
-      queryParams.append('page', currentPage);
-      queryParams.append('limit', itemsPerPage);
-      if (filters.skillWanted) queryParams.append("skillWanted", filters.skillWanted);
-      if (filters.locationQuery) queryParams.append("location", filters.locationQuery);
-      if (filters.category && filters.category !== 'all') queryParams.append("category", filters.category);
+      queryParams.append("page", currentPage);
+      queryParams.append("limit", itemsPerPage);
+      if (filters.skillWanted)
+        queryParams.append("skillWanted", filters.skillWanted);
+      if (filters.locationQuery)
+        queryParams.append("location", filters.locationQuery);
+      if (filters.category && filters.category !== "all")
+        queryParams.append("category", filters.category);
       if (filters.search) queryParams.append("search", filters.search);
 
-      const response = await fetch(`http://localhost:3000/listings?${queryParams}`);
+      const response = await fetch(
+        `http://localhost:3000/listings?${queryParams}`
+      );
       const data = await response.json();
 
       if (data.success) {
@@ -86,7 +92,7 @@ function Homepage() {
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleFilterChange = (newFilters) => {
@@ -99,7 +105,7 @@ function Homepage() {
       skillWanted: "",
       locationQuery: "",
       category: "",
-      search: ""
+      search: "",
     });
     setCurrentPage(1);
   };
@@ -112,18 +118,18 @@ function Homepage() {
 
     // Check if request can be sent
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       const response = await fetch(
         `http://localhost:3000/requests/can-send/${listing.author._id}/${listing._id}`,
         {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
       const data = await response.json();
 
       if (!data.canSend) {
-        if (data.reason === 'Conversation already exists') {
+        if (data.reason === "Conversation already exists") {
           navigate("/inbox");
         } else {
           alert(data.reason);
@@ -134,10 +140,9 @@ function Homepage() {
       // Open request modal
       setSelectedListing(listing);
       setShowRequestModal(true);
-
     } catch (error) {
-      console.error('Error checking request status:', error);
-      alert('Unable to check request status. Please try again.');
+      console.error("Error checking request status:", error);
+      alert("Unable to check request status. Please try again.");
     }
   };
 
@@ -152,14 +157,17 @@ function Homepage() {
       console.log("🟡 Hiring service:", service);
       console.log("🟡 Sending request with serviceId:", service._id);
 
-      const response = await fetch("http://localhost:3000/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ serviceId: service._id })
-      });
+      const response = await fetch(
+        "http://localhost:3000/create-checkout-session",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ serviceId: service._id }),
+        }
+      );
 
       console.log("🟡 Raw response:", response);
 
@@ -169,7 +177,7 @@ function Homepage() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert("Unable to start payment session.");
+        alert(data.error || "Unable to start payment session.");
       }
     } catch (err) {
       console.error("🔴 Payment error:", err);
@@ -177,18 +185,27 @@ function Homepage() {
     }
   };
 
-
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
   const categories = [
-    "Web Development", "Mobile Development", "Design", "Writing", "Marketing",
-    "Photography", "Video Editing", "Tutoring", "Home Services", "Crafts", "Consulting", "Other"
+    "Web Development",
+    "Mobile Development",
+    "Design",
+    "Writing",
+    "Marketing",
+    "Photography",
+    "Video Editing",
+    "Tutoring",
+    "Home Services",
+    "Crafts",
+    "Consulting",
+    "Other",
   ];
 
   return (
@@ -199,21 +216,26 @@ function Homepage() {
       <div className="bg-primary text-white py-5">
         <div className="container text-center">
           <h1 className="display-4 fw-bold mb-3">Welcome to ServX</h1>
-          <p className="lead mb-4">Exchange skills, share knowledge, and build your community</p>
+          <p className="lead mb-4">
+            Exchange skills, share knowledge, and build your community
+          </p>
           <button
             className="btn btn-light btn-lg"
             onClick={() => {
-              if (!loggedIn) navigate('/login');
-              else navigate('/create-listing');
+              if (!loggedIn) navigate("/login");
+              else navigate("/create-listing");
             }}
           >
             <i className="bi bi-plus-circle me-2"></i>
-            {loggedIn ? 'Create Your Listing' : 'Login to Create Listing'}
+            {loggedIn ? "Create Your Listing" : "Login to Create Listing"}
           </button>
           {!loggedIn && (
             <div className="mt-3">
               <small className="text-light">
-                <Link to="/signup" className="text-light text-decoration-underline">
+                <Link
+                  to="/signup"
+                  className="text-light text-decoration-underline"
+                >
                   New user? Sign up here
                 </Link>
               </small>
@@ -236,7 +258,9 @@ function Homepage() {
                   className="form-control"
                   placeholder="Search listings..."
                   value={filters.search}
-                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, search: e.target.value })
+                  }
                 />
               </div>
               <div className="col-md-3">
@@ -245,7 +269,9 @@ function Homepage() {
                   className="form-control"
                   placeholder="Skill Wanted"
                   value={filters.skillWanted}
-                  onChange={(e) => setFilters({ ...filters, skillWanted: e.target.value })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, skillWanted: e.target.value })
+                  }
                 />
               </div>
               <div className="col-md-3">
@@ -254,18 +280,24 @@ function Homepage() {
                   className="form-control"
                   placeholder="Location"
                   value={filters.locationQuery}
-                  onChange={(e) => setFilters({ ...filters, locationQuery: e.target.value })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, locationQuery: e.target.value })
+                  }
                 />
               </div>
               <div className="col-md-3">
                 <select
                   className="form-select"
                   value={filters.category}
-                  onChange={(e) => setFilters({ ...filters, category: e.target.value })}
+                  onChange={(e) =>
+                    setFilters({ ...filters, category: e.target.value })
+                  }
                 >
                   <option value="">All Categories</option>
-                  {categories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -276,7 +308,10 @@ function Homepage() {
               <button className="btn btn-primary" onClick={handleSearch}>
                 <i className="bi bi-search me-2"></i>Search
               </button>
-              <button className="btn btn-outline-secondary" onClick={clearFilters}>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={clearFilters}
+              >
                 <i className="bi bi-x-circle me-2"></i>Clear Filters
               </button>
             </div>
@@ -291,14 +326,17 @@ function Homepage() {
             <h3>Listings</h3>
             {pagination && (
               <p className="text-muted mb-0">
-                Showing {pagination.showing.start}-{pagination.showing.end} of {pagination.total} listings
+                Showing {pagination.showing.start}-{pagination.showing.end} of{" "}
+                {pagination.total} listings
               </p>
             )}
           </div>
 
           {totalListings > 0 && (
             <div className="d-flex align-items-center gap-3">
-              <span className="text-muted">Page {currentPage} of {totalPages}</span>
+              <span className="text-muted">
+                Page {currentPage} of {totalPages}
+              </span>
             </div>
           )}
         </div>
@@ -315,15 +353,14 @@ function Homepage() {
             <i className="bi bi-search display-1 text-muted"></i>
             <h4 className="mt-3">No listings found</h4>
             <p className="text-muted">
-              {Object.values(filters).some(filter => filter)
+              {Object.values(filters).some((filter) => filter)
                 ? "Try adjusting your search criteria or clear filters to see all listings."
-                : "Be the first to create a listing!"
-              }
+                : "Be the first to create a listing!"}
             </p>
-            {!Object.values(filters).some(filter => filter) && loggedIn && (
+            {!Object.values(filters).some((filter) => filter) && loggedIn && (
               <button
                 className="btn btn-primary mt-3"
-                onClick={() => navigate('/create-listing')}
+                onClick={() => navigate("/create-listing")}
               >
                 <i className="bi bi-plus-circle me-2"></i>Create First Listing
               </button>
@@ -338,29 +375,35 @@ function Homepage() {
                     <div className="card-body">
                       <div className="d-flex justify-content-between align-items-start mb-2">
                         <h5 className="card-title">{listing.title}</h5>
-                        <span className={`badge ${listing.isService ? 'bg-success' : 'bg-primary'}`}>
-                          {listing.isService ? 'Service' : listing.category}
+                        <span
+                          className={`badge ${
+                            listing.isService ? "bg-success" : "bg-primary"
+                          }`}
+                        >
+                          {listing.isService ? "Service" : listing.category}
                         </span>
                       </div>
 
                       <p className="text-muted mb-3">
                         {listing.description?.slice(0, 120)}
-                        {listing.description?.length > 120 ? '...' : ''}
+                        {listing.description?.length > 120 ? "..." : ""}
                       </p>
 
                       <div className="row mb-3">
                         <div className="col-6">
                           <small className="text-muted">Offering:</small>
-                          <div className="fw-bold text-success">{listing.skillOffered}</div>
+                          <div className="fw-bold text-success">
+                            {listing.skillOffered}
+                          </div>
                         </div>
                         <div className="col-6">
                           <small className="text-muted">
-                            {listing.isService ? 'Pay Range:' : 'Seeking:'}
+                            {listing.isService ? "Pay Range:" : "Seeking:"}
                           </small>
                           <div className="fw-bold text-primary">
-                            {listing.isService ?
-                              `$${listing.salaryMin} - $${listing.salaryMax}` :
-                              listing.skillWanted}
+                            {listing.isService
+                              ? `$${listing.salaryMin} - $${listing.salaryMax}`
+                              : listing.skillWanted}
                           </div>
                         </div>
                       </div>
@@ -371,7 +414,7 @@ function Homepage() {
                             src="/profile.png"
                             alt="Profile"
                             className="rounded-circle me-2"
-                            style={{ width: '24px', height: '24px' }}
+                            style={{ width: "24px", height: "24px" }}
                           />
                           <div>
                             <small className="text-muted">
@@ -400,8 +443,13 @@ function Homepage() {
                         <div className="mb-2">
                           <small className="text-muted">
                             <i className="bi bi-geo-alt me-1"></i>
-                            {[listing.location.city, listing.location.state, listing.location.country]
-                              .filter(Boolean).join(', ') || 'Location not specified'}
+                            {[
+                              listing.location.city,
+                              listing.location.state,
+                              listing.location.country,
+                            ]
+                              .filter(Boolean)
+                              .join(", ") || "Location not specified"}
                           </small>
                         </div>
                       )}
@@ -409,7 +457,10 @@ function Homepage() {
                       {listing.tags && listing.tags.length > 0 && (
                         <div className="mb-3">
                           {listing.tags.slice(0, 3).map((tag, index) => (
-                            <span key={index} className="badge bg-secondary me-1 mb-1">
+                            <span
+                              key={index}
+                              className="badge bg-secondary me-1 mb-1"
+                            >
                               {tag}
                             </span>
                           ))}
@@ -418,45 +469,70 @@ function Homepage() {
                     </div>
 
                     <div className="d-flex align-items-center mb-3">
-                      {listing.author?.rating?.average >= 4.5 && listing.author?.rating?.count >= 5 && (
-                        <span className="badge bg-success me-2">
-                          <i className="bi bi-shield-check me-1"></i>
-                          Highly Rated
-                        </span>
-                      )}
+                      {listing.author?.rating?.average >= 4.5 &&
+                        listing.author?.rating?.count >= 5 && (
+                          <span className="badge bg-success me-2">
+                            <i className="bi bi-shield-check me-1"></i>
+                            Highly Rated
+                          </span>
+                        )}
                       {listing.author?.rating?.count >= 10 && (
                         <span className="badge bg-info me-2">
                           <i className="bi bi-award me-1"></i>
                           Experienced
                         </span>
                       )}
-                      {listing.createdAt && new Date() - new Date(listing.createdAt) < 7 * 24 * 60 * 60 * 1000 && (
-                        <span className="badge bg-warning text-dark">
-                          <i className="bi bi-clock me-1"></i>
-                          New
-                        </span>
-                      )}
+                      {listing.createdAt &&
+                        new Date() - new Date(listing.createdAt) <
+                          7 * 24 * 60 * 60 * 1000 && (
+                          <span className="badge bg-warning text-dark">
+                            <i className="bi bi-clock me-1"></i>
+                            New
+                          </span>
+                        )}
                     </div>
 
                     <div className="card-footer bg-transparent">
                       {loggedIn ? (
                         <button
-                          className={`btn w-100 ${listing.isService ? 'btn-success' : 'btn-primary'}`}
-                          onClick={() => listing.isService ? handleHireClick(listing) : handleContactClick(listing)}
+                          className={`btn w-100 ${
+                            listing.isService ? "btn-success" : "btn-primary"
+                          }`}
+                          onClick={() =>
+                            listing.isService
+                              ? handleHireClick(listing)
+                              : handleContactClick(listing)
+                          }
                         >
-                          <i className={`bi ${listing.isService ? 'bi-credit-card' : 'bi-person-plus'} me-2`}></i>
-                          {listing.isService ? 'Hire Now' : 'Send Request'}
+                          <i
+                            className={`bi ${
+                              listing.isService
+                                ? "bi-credit-card"
+                                : "bi-person-plus"
+                            } me-2`}
+                          ></i>
+                          {listing.isService ? "Hire Now" : "Send Request"}
                         </button>
                       ) : (
                         <button
-                          className={`btn w-100 ${listing.isService ? 'btn-outline-success' : 'btn-outline-primary'}`}
+                          className={`btn w-100 ${
+                            listing.isService
+                              ? "btn-outline-success"
+                              : "btn-outline-primary"
+                          }`}
                           onClick={() => {
-                            alert(`Please login to ${listing.isService ? 'hire this service' : 'contact the author'}!`);
-                            navigate('/login');
+                            alert(
+                              `Please login to ${
+                                listing.isService
+                                  ? "hire this service"
+                                  : "contact the author"
+                              }!`
+                            );
+                            navigate("/login");
                           }}
                         >
                           <i className="bi bi-box-arrow-in-right me-2"></i>
-                          Login to {listing.isService ? 'Hire' : 'Contact'}
+                          Login to {listing.isService ? "Hire" : "Contact"}
                         </button>
                       )}
                     </div>
@@ -482,11 +558,11 @@ function Homepage() {
                 }}
                 recipient={{
                   id: selectedListing.author._id,
-                  name: selectedListing.author.name
+                  name: selectedListing.author.name,
                 }}
                 listing={{
                   id: selectedListing._id,
-                  title: selectedListing.title
+                  title: selectedListing.title,
                 }}
                 onRequestSent={() => {
                   setShowRequestModal(false);

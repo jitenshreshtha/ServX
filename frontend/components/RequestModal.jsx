@@ -1,58 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
-const RequestModal = ({ 
-  isOpen, 
-  onClose, 
-  recipient, 
-  listing, 
-  onRequestSent 
+const RequestModal = ({
+  isOpen,
+  onClose,
+  recipient,
+  listing,
+  onRequestSent,
 }) => {
   const [formData, setFormData] = useState({
-    message: '',
-    requestType: 'collaboration'
+    message: "",
+    requestType: "collaboration",
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.message.trim()) {
-      setErrors({ message: 'Please include a message with your request' });
+      setErrors({ message: "Please include a message with your request" });
       return;
     }
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/requests', {
-        method: 'POST',
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:3000/requests", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           recipientId: recipient.id,
           listingId: listing.id,
           message: formData.message,
-          requestType: formData.requestType
-        })
+          requestType: formData.requestType,
+        }),
       });
 
       const data = await response.json();
 
-      if (response.ok) {
-        alert('Request sent successfully!');
+      if (response.ok && data.success) {
+        alert(data.message);
         if (onRequestSent) onRequestSent(data.request);
         onClose();
-        setFormData({ message: '', requestType: 'collaboration' });
+        setFormData({ message: "", requestType: "collaboration" });
       } else {
-        throw new Error(data.error || 'Failed to send request');
+        throw new Error(data.error || "Failed to send request");
       }
-
     } catch (error) {
-      console.error('Error sending request:', error);
-      alert('Failed to send request: ' + error.message);
+      console.error("Error sending request:", error);
+      alert("Failed to send request: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -60,16 +59,20 @@ const RequestModal = ({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+    <div
+      className="modal show d-block"
+      tabIndex="-1"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+    >
       <div className="modal-dialog">
         <div className="modal-content">
           <div className="modal-header">
@@ -77,9 +80,9 @@ const RequestModal = ({
               <i className="bi bi-person-plus me-2"></i>
               Send Connection Request
             </h5>
-            <button 
-              type="button" 
-              className="btn-close" 
+            <button
+              type="button"
+              className="btn-close"
               onClick={onClose}
               disabled={loading}
             ></button>
@@ -94,10 +97,12 @@ const RequestModal = ({
                     src="/profile.png"
                     alt="Profile"
                     className="rounded-circle me-3"
-                    style={{ width: '50px', height: '50px' }}
+                    style={{ width: "50px", height: "50px" }}
                   />
                   <div>
-                    <h6 className="mb-1">Sending request to: {recipient?.name}</h6>
+                    <h6 className="mb-1">
+                      Sending request to: {recipient?.name}
+                    </h6>
                     <small className="text-muted">
                       For listing: "{listing?.title}"
                     </small>
@@ -116,7 +121,9 @@ const RequestModal = ({
                   value={formData.requestType}
                   onChange={handleChange}
                 >
-                  <option value="collaboration">Skill Exchange Collaboration</option>
+                  <option value="collaboration">
+                    Skill Exchange Collaboration
+                  </option>
                   <option value="service_inquiry">Service Inquiry</option>
                   <option value="general">General Question</option>
                 </select>
@@ -128,7 +135,9 @@ const RequestModal = ({
                   Your Message *
                 </label>
                 <textarea
-                  className={`form-control ${errors.message ? 'is-invalid' : ''}`}
+                  className={`form-control ${
+                    errors.message ? "is-invalid" : ""
+                  }`}
                   id="requestMessage"
                   name="message"
                   value={formData.message}
@@ -165,23 +174,26 @@ const RequestModal = ({
           </div>
 
           <div className="modal-footer">
-            <button 
-              type="button" 
-              className="btn btn-secondary" 
+            <button
+              type="button"
+              className="btn btn-secondary"
               onClick={onClose}
               disabled={loading}
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn btn-primary"
               onClick={handleSubmit}
               disabled={loading || !formData.message.trim()}
             >
               {loading ? (
                 <>
-                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                  ></span>
                   Sending...
                 </>
               ) : (

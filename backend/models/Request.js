@@ -1,3 +1,4 @@
+// models/Request.js
 const mongoose = require('mongoose');
 
 const requestSchema = new mongoose.Schema({
@@ -23,8 +24,8 @@ const requestSchema = new mongoose.Schema({
   },
   message: {
     type: String,
-    maxlength: 500,
-    trim: true
+    trim: true,
+    maxlength: 500
   },
   requestType: {
     type: String,
@@ -33,12 +34,10 @@ const requestSchema = new mongoose.Schema({
   },
   responseMessage: {
     type: String,
-    maxlength: 500,
-    trim: true
+    trim: true,
+    maxlength: 500
   },
-  respondedAt: {
-    type: Date
-  },
+  respondedAt: Date,
   expiresAt: {
     type: Date,
     default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
@@ -47,19 +46,14 @@ const requestSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Indexes for better performance
+// Indexes
 requestSchema.index({ sender: 1, createdAt: -1 });
 requestSchema.index({ recipient: 1, status: 1, createdAt: -1 });
 requestSchema.index({ listing: 1 });
 requestSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-// Prevent duplicate pending requests
 requestSchema.index(
   { sender: 1, recipient: 1, listing: 1, status: 1 },
-  { 
-    unique: true,
-    partialFilterExpression: { status: 'pending' }
-  }
+  { unique: true, partialFilterExpression: { status: 'pending' } }
 );
 
 module.exports = mongoose.model('Request', requestSchema);

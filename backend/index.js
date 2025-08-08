@@ -1984,73 +1984,61 @@ app.post('/requests', authenticateToken, async (req, res, next) => {
     const { recipientId, listingId, message, requestType = 'collaboration' } = req.body;
     const senderId = req.user.userId;
 
-    // Validation
+    // --- validation ---
     if (!recipientId || !listingId) {
       return res.status(400).json({ error: 'Recipient and listing are required' });
     }
-
     if (senderId === recipientId) {
       return res.status(400).json({ error: 'Cannot send request to yourself' });
     }
 
-    // Check if recipient and listing exist
+    // --- existence checks ---
     const [recipient, listing] = await Promise.all([
       User.findById(recipientId),
-      Listing.findById(listingId)
+      Listing.findById(listingId),
     ]);
+    if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
+    if (!listing)   return res.status(404).json({ error: 'Listing not found' });
 
-    if (!recipient) {
-      return res.status(404).json({ error: 'Recipient not found' });
-    }
-
-    if (!listing) {
-      return res.status(404).json({ error: 'Listing not found' });
-    }
-
-    // Check for existing pending request
-    const existingRequest = await Request.findOne({
+    // --- prevent duplicates ---
+    const existing = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
       listing: listingId,
-      status: 'pending'
+      status: 'pending',
     });
-
-    if (existingRequest) {
+    if (existing) {
       return res.status(409).json({ error: 'Request already sent and pending' });
     }
 
-    // Create the request
+    // --- create & respond ---
     const request = new Request({
       sender: senderId,
       recipient: recipientId,
       listing: listingId,
       message: message?.trim(),
-      requestType
+      requestType,
     });
-
     await request.save();
-
-    // Populate for response
     await request.populate([
-      { path: 'sender', select: 'name email rating' },
+      { path: 'sender',    select: 'name email rating' },
       { path: 'recipient', select: 'name email' },
-      { path: 'listing', select: 'title skillOffered skillWanted' }
+      { path: 'listing',   select: 'title skillOffered skillWanted' },
     ]);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Request sent successfully',
-      request
+      request,
     });
 
-  } catch (error) {
-    if (error.code === 11000) {
+  } catch (err) {
+    if (err.code === 11000) {
       return res.status(409).json({ error: 'Request already exists' });
     }
-    next(error);
+    next(err);
   }
 });
-
 // Get received requests (for the current user)
 app.get('/requests/received', authenticateToken, async (req, res, next) => {
   try {
@@ -2266,56 +2254,46 @@ app.get('/requests/can-send/:recipientId/:listingId', authenticateToken, async (
     const senderId = req.user.userId;
 
     if (senderId === recipientId) {
-      return res.json({
-        success: true,
-        canSend: false,
-        reason: 'Cannot send request to yourself'
-      });
+      return res.json({ canSend: false, reason: 'Cannot send request to yourself' });
     }
 
-    // Check for existing requests
-    const existingRequest = await Request.findOne({
+    const existingReq = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
       listing: listingId,
-      status: { $in: ['pending', 'accepted'] }
+      status: { $in: ['pending', 'accepted'] },
     });
-
-    // Check for existing conversation
-    const existingConversation = await Conversation.findOne({
+    const existingConv = await Conversation.findOne({
       participants: { $all: [senderId, recipientId], $size: 2 },
-      listing: listingId
+      listing: listingId,
     });
 
-    let canSend = true;
-    let reason = '';
-
-    if (existingConversation) {
-      canSend = false;
-      reason = 'Conversation already exists';
-    } else if (existingRequest) {
-      canSend = false;
-      reason = existingRequest.status === 'pending' 
+    if (existingConv) {
+      return res.json({ canSend: false, reason: 'Conversation already exists' });
+    }
+    if (existingReq) {
+      const reason = existingReq.status === 'pending'
         ? 'Request already sent and pending'
         : 'Request already accepted';
+      return res.json({ canSend: false, reason });
     }
 
-    res.json({
-      success: true,
-      canSend,
-      reason,
-      existingRequest: existingRequest ? {
-        id: existingRequest._id,
-        status: existingRequest.status,
-        createdAt: existingRequest.createdAt
-      } : null
-    });
+    return res.json({ canSend: true });
 
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 });
 
+app.post("/create-checkout-session", authenticateToken, async (req, res) => {
+  const { serviceId } = req.body;
+  const listing = await Listing.findById(serviceId);
+  if (!listing || !listing.isService) {
+    return res.status(404).json({ error: "Service not found" });
+  }
+  const session = await stripe.checkout.sessions.create({ /* … */ });
+  res.json({ url: session.url });
+});
 
 
 
