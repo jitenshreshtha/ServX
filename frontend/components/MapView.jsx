@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import RequestModal from './RequestModal'; // Import the modal component
+import { useNavigate } from 'react-router-dom';
 
 // Fix for default markers in webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -15,12 +17,31 @@ const MapView = () => {
     const mapInstanceRef = useRef(null);
     const markersRef = useRef([]);
     const isInitializedRef = useRef(false);
+    const navigate = useNavigate();
 
     const [listings, setListings] = useState([]);
     const [userLocation, setUserLocation] = useState(null);
     const [mapCenter, setMapCenter] = useState([43.4643, -80.5204]); // Kitchener, ON
     const [radius, setRadius] = useState(50);
     const [loading, setLoading] = useState(false);
+    const [loggedIn, setLoggedIn] = useState(false);
+    
+    // Modal state (same as Homepage)
+    const [showRequestModal, setShowRequestModal] = useState(false);
+    const [selectedListing, setSelectedListing] = useState(null);
+
+    // Check login status
+    useEffect(() => {
+        const checkLoginStatus = () => {
+            const token = localStorage.getItem('token');
+            setLoggedIn(!!token);
+        };
+        
+        checkLoginStatus();
+        const handleLoginStateChange = () => checkLoginStatus();
+        window.addEventListener('loginStateChange', handleLoginStateChange);
+        return () => window.removeEventListener('loginStateChange', handleLoginStateChange);
+    }, []);
 
     // Initialize map only once
     useEffect(() => {
@@ -93,6 +114,87 @@ const MapView = () => {
         markersRef.current = [];
     };
 
+    // Handle contact click (same logic as Homepage)
+    const handleContactClick = async (listing) => {
+        if (!loggedIn) {
+            alert("Please login to send requests!");
+            navigate('/login');
+            return;
+        }
+
+        if (!listing || !listing.author || !listing.author._id || !listing._id) {
+            alert("Cannot contact: missing author or listing info");
+            return;
+        }
+
+        // Check if request can be sent
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(
+                `http://localhost:3000/requests/can-send/${listing.author._id}/${listing._id}`,
+                {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }
+            );
+
+            const data = await response.json();
+
+            if (!data.canSend) {
+                if (data.reason === 'Conversation already exists') {
+                    navigate("/inbox");
+                } else {
+                    alert(data.reason);
+                }
+                return;
+            }
+
+            // Open request modal
+            setSelectedListing(listing);
+            setShowRequestModal(true);
+
+        } catch (error) {
+            console.error('Error checking request status:', error);
+            alert('Unable to check request status. Please try again.');
+        }
+    };
+
+    // Handle hire click (same logic as Homepage)
+    const handleHireClick = async (service) => {
+        if (!loggedIn) {
+            alert("Please login to proceed with hiring.");
+            return navigate("/login");
+        }
+
+        try {
+            const token = localStorage.getItem("token");
+            console.log("🟡 Hiring service:", service);
+            console.log("🟡 Sending request with serviceId:", service._id);
+
+            const response = await fetch("http://localhost:3000/create-checkout-session", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({ serviceId: service._id })
+            });
+
+            console.log("🟡 Raw response:", response);
+
+            const data = await response.json();
+            console.log("🟢 Stripe session response:", data);
+
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                alert("Unable to start payment session.");
+            }
+        } catch (err) {
+            console.error("🔴 Payment error:", err);
+            alert("Something went wrong. Try again later.");
+        }
+    };
+
     // Add markers to map
     useEffect(() => {
         if (!mapInstanceRef.current || !isInitializedRef.current) return;
@@ -116,7 +218,7 @@ const MapView = () => {
             markersRef.current.push(userMarker);
         }
 
-        // Add listing markers
+        // Add listings markers
         listings.forEach(listing => {
             if (!listing.location?.coordinates?.coordinates) {
                 // For testing, if no coordinates, use random ones near Kitchener
@@ -152,7 +254,7 @@ const MapView = () => {
               ${listing.isService ? `$${listing.salaryMin || 0}-$${listing.salaryMax || 0}` : listing.skillWanted}
             </div>
             <div style="display: flex; align-items: center; margin-bottom: 8px;">
-              <img src="/profile.png" alt="Profile" style="
+              <img src="${listing.author?.profileImage || '/profile.png'}" alt="Profile" style="
                 width: 20px; 
                 height: 20px; 
                 border-radius: 50%; 
@@ -160,17 +262,18 @@ const MapView = () => {
               ">
               <small>${listing.author?.name || 'Unknown'}</small>
             </div>
-            <button onclick="handleContactClick('${listing._id}')" style="
-              background-color: #0d6efd;
+            <button onclick="window.handleListingAction('${listing._id}')" style="
+              background-color: ${listing.isService ? '#28a745' : '#0d6efd'};
               color: white;
               border: none;
-              padding: 4px 8px;
+              padding: 6px 12px;
               border-radius: 4px;
               width: 100%;
               font-size: 12px;
               cursor: pointer;
+              font-weight: 500;
             ">
-              Contact
+              ${listing.isService ? '💳 Hire Now' : '📤 Send Request'}
             </button>
           </div>
         `;
@@ -210,7 +313,7 @@ const MapView = () => {
             ${listing.isService ? `$${listing.salaryMin}-$${listing.salaryMax}` : listing.skillWanted}
           </div>
           <div style="display: flex; align-items: center; margin-bottom: 8px;">
-            <img src="/profile.png" alt="Profile" style="
+            <img src="${listing.author?.profileImage || '/profile.png'}" alt="Profile" style="
               width: 20px; 
               height: 20px; 
               border-radius: 50%; 
@@ -218,17 +321,18 @@ const MapView = () => {
             ">
             <small>${listing.author?.name}</small>
           </div>
-          <button onclick="handleContactClick('${listing._id}')" style="
-            background-color: #0d6efd;
+          <button onclick="window.handleListingAction('${listing._id}')" style="
+            background-color: ${listing.isService ? '#28a745' : '#0d6efd'};
             color: white;
             border: none;
-            padding: 4px 8px;
+            padding: 6px 12px;
             border-radius: 4px;
             width: 100%;
             font-size: 12px;
             cursor: pointer;
+            font-weight: 500;
           ">
-            Contact
+            ${listing.isService ? '💳 Hire Now' : '📤 Send Request'}
           </button>
         </div>
       `;
@@ -240,18 +344,28 @@ const MapView = () => {
         console.log(`✅ Added ${markersRef.current.length} markers to map`);
     }, [listings, userLocation, radius]);
 
-    // Make handleContactClick available globally for popup buttons
+    // Make handleListingAction available globally for popup buttons
     useEffect(() => {
-        window.handleContactClick = (listingId) => {
-            console.log('Contact clicked for listing:', listingId);
-            // Navigate to inbox with listing info
-            window.location.href = `/inbox?listing=${listingId}`;
+        window.handleListingAction = (listingId) => {
+            console.log('🎯 Listing action triggered for:', listingId);
+            const listing = listings.find(l => l._id === listingId);
+            
+            if (!listing) {
+                console.error('Listing not found:', listingId);
+                return;
+            }
+
+            if (listing.isService) {
+                handleHireClick(listing);
+            } else {
+                handleContactClick(listing);
+            }
         };
 
         return () => {
-            delete window.handleContactClick;
+            delete window.handleListingAction;
         };
-    }, []);
+    }, [listings, loggedIn]);
 
     const getCurrentLocation = () => {
         console.log('🗺️ Getting current location...');
@@ -369,99 +483,124 @@ const MapView = () => {
     }, [userLocation, radius]);
 
     return (
-        <div className="container-fluid p-0">
-            {/* Map Controls */}
-            <div className="bg-white p-3 shadow-sm">
-                <div className="row align-items-center">
-                    <div className="col-md-6">
-                        <h4 className="mb-0">Skill Map</h4>
-                        <small className="text-muted">Discover skills and services near you</small>
-                    </div>
-                    <div className="col-md-6">
-                        <div className="d-flex gap-3 align-items-center justify-content-end">
-                            <div>
-                                <label className="form-label mb-1">Search Radius:</label>
-                                <select
-                                    className="form-select form-select-sm"
-                                    value={radius}
-                                    onChange={(e) => setRadius(parseInt(e.target.value))}
+        <>
+            <div className="container-fluid p-0">
+                {/* Map Controls */}
+                <div className="bg-white p-3 shadow-sm">
+                    <div className="row align-items-center">
+                        <div className="col-md-6">
+                            <h4 className="mb-0">Skill Map</h4>
+                            <small className="text-muted">Discover skills and services near you</small>
+                        </div>
+                        <div className="col-md-6">
+                            <div className="d-flex gap-3 align-items-center justify-content-end">
+                                <div>
+                                    <label className="form-label mb-1">Search Radius:</label>
+                                    <select
+                                        className="form-select form-select-sm"
+                                        value={radius}
+                                        onChange={(e) => setRadius(parseInt(e.target.value))}
+                                    >
+                                        <option value={10}>10 km</option>
+                                        <option value={25}>25 km</option>
+                                        <option value={50}>50 km</option>
+                                        <option value={100}>100 km</option>
+                                    </select>
+                                </div>
+                                <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={getCurrentLocation}
+                                    disabled={loading}
                                 >
-                                    <option value={10}>10 km</option>
-                                    <option value={25}>25 km</option>
-                                    <option value={50}>50 km</option>
-                                    <option value={100}>100 km</option>
-                                </select>
+                                    <i className="bi bi-geo-alt"></i> Update Location
+                                </button>
+                                {loading && (
+                                    <div className="spinner-border spinner-border-sm text-primary"></div>
+                                )}
                             </div>
-                            <button
-                                className="btn btn-primary btn-sm"
-                                onClick={getCurrentLocation}
-                                disabled={loading}
-                            >
-                                <i className="bi bi-geo-alt"></i> Update Location
-                            </button>
-                            {loading && (
-                                <div className="spinner-border spinner-border-sm text-primary"></div>
-                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Map Container */}
+                <div
+                    ref={mapRef}
+                    style={{ height: '70vh', width: '100%' }}
+                    className="border"
+                />
+
+                {/* Legend */}
+                <div className="bg-white p-3 border-top">
+                    <div className="row">
+                        <div className="col-md-8">
+                            <h6>Map Legend</h6>
+                            <div className="d-flex gap-4">
+                                <div className="d-flex align-items-center">
+                                    <div style={{
+                                        width: '12px',
+                                        height: '12px',
+                                        backgroundColor: '#dc3545',
+                                        borderRadius: '50%',
+                                        marginRight: '8px',
+                                        border: '2px solid #fff',
+                                        boxShadow: '0 0 0 1px #dc3545'
+                                    }}></div>
+                                    <small>Your Location</small>
+                                </div>
+                                <div className="d-flex align-items-center">
+                                    <div style={{
+                                        width: '12px',
+                                        height: '12px',
+                                        backgroundColor: '#0d6efd',
+                                        borderRadius: '50%',
+                                        marginRight: '8px'
+                                    }}></div>
+                                    <small>Skill Exchange</small>
+                                </div>
+                                <div className="d-flex align-items-center">
+                                    <div style={{
+                                        width: '12px',
+                                        height: '12px',
+                                        backgroundColor: '#28a745',
+                                        borderRadius: '50%',
+                                        marginRight: '8px'
+                                    }}></div>
+                                    <small>Paid Service</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-md-4 text-end">
+                            <small className="text-muted">
+                                Found {listings.length} listings within {radius} km
+                            </small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Map Container */}
-            <div
-                ref={mapRef}
-                style={{ height: '70vh', width: '100%' }}
-                className="border"
-            />
-
-            {/* Legend */}
-            <div className="bg-white p-3 border-top">
-                <div className="row">
-                    <div className="col-md-8">
-                        <h6>Map Legend</h6>
-                        <div className="d-flex gap-4">
-                            <div className="d-flex align-items-center">
-                                <div style={{
-                                    width: '12px',
-                                    height: '12px',
-                                    backgroundColor: '#dc3545',
-                                    borderRadius: '50%',
-                                    marginRight: '8px',
-                                    border: '2px solid #fff',
-                                    boxShadow: '0 0 0 1px #dc3545'
-                                }}></div>
-                                <small>Your Location</small>
-                            </div>
-                            <div className="d-flex align-items-center">
-                                <div style={{
-                                    width: '12px',
-                                    height: '12px',
-                                    backgroundColor: '#0d6efd',
-                                    borderRadius: '50%',
-                                    marginRight: '8px'
-                                }}></div>
-                                <small>Skill Exchange</small>
-                            </div>
-                            <div className="d-flex align-items-center">
-                                <div style={{
-                                    width: '12px',
-                                    height: '12px',
-                                    backgroundColor: '#28a745',
-                                    borderRadius: '50%',
-                                    marginRight: '8px'
-                                }}></div>
-                                <small>Paid Service</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="col-md-4 text-end">
-                        <small className="text-muted">
-                            Found {listings.length} listings within {radius} km
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
+            {/* Request Modal (same as Homepage) */}
+            {showRequestModal && selectedListing && (
+                <RequestModal
+                    isOpen={showRequestModal}
+                    onClose={() => {
+                        setShowRequestModal(false);
+                        setSelectedListing(null);
+                    }}
+                    recipient={{
+                        id: selectedListing.author._id,
+                        name: selectedListing.author.name
+                    }}
+                    listing={{
+                        id: selectedListing._id,
+                        title: selectedListing.title
+                    }}
+                    onRequestSent={() => {
+                        setShowRequestModal(false);
+                        setSelectedListing(null);
+                    }}
+                />
+            )}
+        </>
     );
 };
 

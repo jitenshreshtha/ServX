@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Pagination from './Pagination';
+import AutoMatch from './AutoMatch';
 
 function MyListings() {
   const [listings, setListings] = useState([]);
@@ -14,6 +15,8 @@ function MyListings() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [debugInfo, setDebugInfo] = useState(null);
   const [error, setError] = useState(null);
+  const [showAutoMatch, setShowAutoMatch] = useState(false);
+  const [selectedListingForMatch, setSelectedListingForMatch] = useState(null);
   const itemsPerPage = 6;
   const navigate = useNavigate();
 
@@ -41,7 +44,7 @@ function MyListings() {
       // Services tab - only show services
       if (filter === 'services') {
         queryParams.append('isService', 'true');
-      } 
+      }
       // Other tabs - exclude services unless in 'all' filter
       else if (filter !== 'all') {
         queryParams.append('status', filter);
@@ -175,7 +178,7 @@ function MyListings() {
       cancelled: 0,
       services: 0
     };
-    
+
     // If we have pagination data with counts, use that
     if (pagination?.counts) {
       return {
@@ -183,7 +186,7 @@ function MyListings() {
         ...pagination.counts
       };
     }
-    
+
     // Fallback to client-side counting if pagination.counts isn't available
     listings.forEach(listing => {
       if (listing.isService) {
@@ -192,7 +195,7 @@ function MyListings() {
         counts[listing.status]++;
       }
     });
-    
+
     return counts;
   };
 
@@ -358,15 +361,15 @@ function MyListings() {
         <div className="text-center py-5">
           <i className="bi bi-list-ul display-1 text-muted"></i>
           <h4 className="mt-3">
-            {searchTerm ? 'No matching listings found' : 
-              filter === 'all' ? 'No listings yet' : filter === 'services' ? 'No services yet' : 
-              `No ${filter.replace('_', ' ')} listings`}
+            {searchTerm ? 'No matching listings found' :
+              filter === 'all' ? 'No listings yet' : filter === 'services' ? 'No services yet' :
+                `No ${filter.replace('_', ' ')} listings`}
           </h4>
           <p className="text-muted">
-            {searchTerm ? `No listings match "${searchTerm}".` : 
-              filter === 'all' ? "You haven't created any listings yet." : 
-              filter === 'services' ? "You haven't moved any listings to services yet." : 
-              `You don't have any ${filter.replace('_', ' ')} listings.`}
+            {searchTerm ? `No listings match "${searchTerm}".` :
+              filter === 'all' ? "You haven't created any listings yet." :
+                filter === 'services' ? "You haven't moved any listings to services yet." :
+                  `You don't have any ${filter.replace('_', ' ')} listings.`}
           </p>
           <Link to="/create-listing" className="btn btn-primary mt-3">
             <i className="bi bi-plus-circle me-2"></i>Create Your First Listing
@@ -470,6 +473,20 @@ function MyListings() {
                       >
                         <i className="bi bi-pencil me-1"></i>Edit
                       </button>
+
+                      {(!listing.status || listing.status === 'active') && !listing.isService && (
+                        <button
+                          className="btn btn-warning btn-sm flex-fill"
+                          onClick={() => {
+                            setSelectedListingForMatch(listing);
+                            setShowAutoMatch(true);
+                          }}
+                          title="Find users who might want to collaborate"
+                        >
+                          <i className="bi bi-lightning me-1"></i>Auto-Match
+                        </button>
+                      )}
+
                       {(!listing.status || listing.status === 'active') && !listing.isService && (
                         <button
                           className="btn btn-outline-warning btn-sm flex-fill"
@@ -497,6 +514,16 @@ function MyListings() {
             loading={loading}
           />
         </>
+      )}
+
+      {showAutoMatch && selectedListingForMatch && (
+        <AutoMatch
+          listing={selectedListingForMatch}
+          onClose={() => {
+            setShowAutoMatch(false);
+            setSelectedListingForMatch(null);
+          }}
+        />
       )}
     </div>
   );

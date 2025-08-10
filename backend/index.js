@@ -103,11 +103,11 @@ app.get("/", (req, res) => {
 
 // Configure Passport Google OAuth
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`,
-    passReqToCallback: true
-  },
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: `${process.env.BACKEND_URL}/auth/google/callback`,
+  passReqToCallback: true
+},
   async (req, accessToken, refreshToken, profile, done) => {
     try {
       let user = await User.findOne({ email: profile.emails[0].value });
@@ -132,7 +132,7 @@ passport.use(new GoogleStrategy({
 ));
 
 // Google Auth Initiation
-app.get('/auth/google', 
+app.get('/auth/google',
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false
@@ -140,7 +140,7 @@ app.get('/auth/google',
 );
 
 // Google Auth Callback
-app.get('/auth/google/callback', 
+app.get('/auth/google/callback',
   passport.authenticate('google', { session: false }),
   async (req, res) => {
     try {
@@ -171,7 +171,7 @@ app.post("/signup", async (req, res, next) => {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       if (existingUser.isGoogleAuth) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: "This email is registered with Google. Please sign in with Google.",
           isGoogleAuth: true
         });
@@ -250,20 +250,12 @@ app.post('/2fa/setup', authenticateToken, async (req, res) => {
   }
 });
 
+// 2. Verify 2FA setup (first OTP), enable 2FA for user
 app.post('/2fa/verify-setup', authenticateToken, async (req, res) => {
   try {
     const { token } = req.body;
-    console.log("→ Received token:", token);
-    console.log("→ Authenticated user ID:", req.user.userId);
-
     const user = await User.findById(req.user.userId);
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    console.log("→ User found:", user.email);
-    console.log("→ Temp secret present?", !!user.twoFactorTempSecret);
-
-    if (!user.twoFactorTempSecret)
-      return res.status(400).json({ error: "No setup in progress" });
+    if (!user || !user.twoFactorTempSecret) return res.status(400).json({ error: "No setup in progress" });
 
     const verified = speakeasy.totp.verify({
       secret: user.twoFactorTempSecret,
@@ -278,10 +270,11 @@ app.post('/2fa/verify-setup', authenticateToken, async (req, res) => {
     user.twoFactorEnabled = true;
     user.twoFactorTempSecret = undefined;
     await user.save();
-
-    res.json({ success: true, twoFactorEnabled: true });
+    res.json({
+      success: true,
+      twoFactorEnabled: user.twoFactorEnabled
+    });
   } catch (err) {
-    console.error("❌ 2FA verify setup error:", err);
     res.status(500).json({ error: '2FA verify setup error' });
   }
 });
@@ -496,9 +489,9 @@ app.get("/admin/users", authenticateAdmin, async (req, res, next) => {
     const skip = (currentPage - 1) * itemsPerPage;
 
     const filter = {};
-    
+
     if (role && role !== 'all') filter.role = role;
-    
+
     if (search && search.trim()) {
       const searchTerm = new RegExp(search.trim(), 'i');
       filter.$or = [
@@ -570,7 +563,7 @@ app.get("/admin/all-listings", authenticateAdmin, async (req, res, next) => {
 
     if (status && status !== 'all') filter.status = status;
     if (category && category !== 'all') filter.category = category;
-    
+
     if (search && search.trim()) {
       const searchTerm = new RegExp(search.trim(), 'i');
       filter.$or = [
@@ -663,8 +656,8 @@ app.post("/admin/users", authenticateAdmin, async (req, res, next) => {
     await user.save();
     const safe = user.toObject(); delete safe.password;
     res.status(201).json({ user: safe });
-  } catch (err) { 
-    next(err); 
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -694,8 +687,8 @@ app.put("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
     ).select("-password");
     if (!user) return res.status(404).json({ error: "User not found" });
     res.json({ user });
-  } catch (err) { 
-    next(err); 
+  } catch (err) {
+    next(err);
   }
 });
 
@@ -721,8 +714,8 @@ app.delete("/admin/users/:id", authenticateAdmin, async (req, res, next) => {
     await Listing.deleteMany({ author: userId });
 
     // Delete Projects involving the user
-    await Project.deleteMany({ 
-      $or: [{ requester: userId }, { provider: userId }] 
+    await Project.deleteMany({
+      $or: [{ requester: userId }, { provider: userId }]
     });
 
     // Find Conversations involving the user
@@ -909,6 +902,7 @@ app.get("/listings", async (req, res, next) => {
         .lean(),
       Listing.countDocuments(filter)
     ]);
+    
 
     const totalPages = Math.ceil(totalCount / itemsPerPage);
     res.json({
@@ -947,7 +941,7 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
     console.log("🔍 [MyListings Debug] Request received");
     console.log("🔍 [MyListings Debug] User from token:", req.user);
     console.log("🔍 [MyListings Debug] User ID:", req.user.userId);
-    
+
     const {
       page = 1,
       limit = 6,
@@ -968,7 +962,7 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
     // Add filters
     if (status && status !== 'all') filter.status = status;
     if (category && category !== 'all') filter.category = category;
-    
+
     if (search && search.trim()) {
       const searchTerm = new RegExp(search.trim(), 'i');
       filter.$or = [
@@ -992,7 +986,7 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
     // Check if any listings exist at all and what their author IDs look like
     if (totalUserListings === 0) {
       const sampleListings = await Listing.find({}).select('author title').populate('author', 'name email').limit(5);
-      console.log("🔍 [MyListings Debug] Sample listings with authors:", 
+      console.log("🔍 [MyListings Debug] Sample listings with authors:",
         sampleListings.map(l => ({
           title: l.title,
           authorId: l.author?._id?.toString(),
@@ -1000,7 +994,7 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
           authorEmail: l.author?.email
         }))
       );
-      
+
       console.log("🔍 [MyListings Debug] Current user ID type:", typeof req.user.userId);
       console.log("🔍 [MyListings Debug] Current user ID value:", req.user.userId);
     }
@@ -1218,7 +1212,7 @@ app.patch("/admin/messages/:id/delete", authenticateAdmin, async (req, res, next
 app.post('/contact', async (req, res, next) => {
   try {
     const { name, email, message, subject } = req.body;
-    
+
     // Validation
     if (!name || !email || !message) {
       return res.status(400).json({
@@ -1226,7 +1220,7 @@ app.post('/contact', async (req, res, next) => {
         error: 'Name, email, and message are required'
       });
     }
-    
+
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -1235,7 +1229,7 @@ app.post('/contact', async (req, res, next) => {
         error: 'Please provide a valid email address'
       });
     }
-    
+
     // Sanitize inputs
     const sanitizedData = {
       name: name.trim(),
@@ -1243,7 +1237,7 @@ app.post('/contact', async (req, res, next) => {
       message: message.trim(),
       subject: subject ? subject.trim() : 'General Inquiry'
     };
-    
+
     // Additional validation
     if (sanitizedData.name.length < 2) {
       return res.status(400).json({
@@ -1251,54 +1245,54 @@ app.post('/contact', async (req, res, next) => {
         error: 'Name must be at least 2 characters long'
       });
     }
-    
+
     if (sanitizedData.message.length < 10) {
       return res.status(400).json({
         success: false,
         error: 'Message must be at least 10 characters long'
       });
     }
-    
+
     console.log('📧 Processing contact form submission:', {
       name: sanitizedData.name,
       email: sanitizedData.email,
       subject: sanitizedData.subject,
       messageLength: sanitizedData.message.length
     });
-    
+
     // Send email to admin using SendGrid
     await sendContactEmail(sanitizedData);
-    
+
     // Send auto-reply to user (optional, but recommended)
     try {
       await sendContactAutoReply(
-        sanitizedData.email, 
-        sanitizedData.name, 
+        sanitizedData.email,
+        sanitizedData.name,
         sanitizedData.subject
       );
     } catch (autoReplyError) {
       console.log('⚠️ Auto-reply failed but continuing:', autoReplyError.message);
       // Don't fail the whole request if auto-reply fails
     }
-    
+
     console.log('✅ Contact form processed successfully');
-    
+
     res.json({
       success: true,
       message: 'Thank you for your message! We\'ll get back to you within 24-48 hours.'
     });
-    
+
   } catch (error) {
     console.error('❌ Contact form error:', error);
-    
+
     // Check if it's a SendGrid specific error
     let errorMessage = 'Unable to send message at this time. Please try again later.';
-    
+
     if (error.message && error.message.includes('SendGrid')) {
       console.error('SendGrid API Error Details:', error);
       errorMessage = 'Email service temporarily unavailable. Please try again in a few minutes.';
     }
-    
+
     res.status(500).json({
       success: false,
       error: errorMessage
@@ -1315,21 +1309,21 @@ app.post('/admin/test-contact-email', authenticateAdmin, async (req, res) => {
       message: 'This is a test message to verify the contact form email functionality using SendGrid.',
       subject: 'Contact Form Test'
     };
-    
+
     console.log('🧪 Testing contact email functionality...');
-    
+
     // Send test email
     const result = await sendContactEmail(testData);
-    
+
     // Send test auto-reply
     await sendContactAutoReply(testData.email, testData.name, testData.subject);
-    
+
     res.json({
       success: true,
       message: 'Test emails sent successfully!',
       messageId: result.messageId
     });
-    
+
   } catch (error) {
     console.error('❌ Test contact email failed:', error);
     res.status(500).json({
@@ -1346,9 +1340,9 @@ app.get('/admin/contact-email-status', authenticateAdmin, (req, res) => {
     'SENDGRID_API_KEY',
     'ADMIN_EMAIL'
   ];
-  
+
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-  
+
   const status = {
     service: 'SendGrid',
     configured: missingVars.length === 0,
@@ -1357,7 +1351,7 @@ app.get('/admin/contact-email-status', authenticateAdmin, (req, res) => {
     adminEmail: process.env.ADMIN_EMAIL ? '✓ Configured' : '✗ Missing',
     frontendUrl: process.env.FRONTEND_URL ? '✓ Configured' : '⚠️ Using default'
   };
-  
+
   res.json(status);
 });
 
@@ -1614,9 +1608,9 @@ app.get("/reviews/stats/:userId", async (req, res, next) => {
       { $sort: { _id: -1 } }
     ]);
 
-    const totalReviews = await Review.countDocuments({ 
-      reviewee: userId, 
-      status: 'active' 
+    const totalReviews = await Review.countDocuments({
+      reviewee: userId,
+      status: 'active'
     });
 
     const averageRating = await Review.aggregate([
@@ -1642,7 +1636,7 @@ app.get("/reviews/stats/:userId", async (req, res, next) => {
       success: true,
       stats: {
         totalReviews,
-        averageRating: averageRating.length > 0 ? 
+        averageRating: averageRating.length > 0 ?
           Math.round(averageRating[0].average * 10) / 10 : 0,
         ratingDistribution
       }
@@ -1729,7 +1723,7 @@ app.get("/my-listings", authenticateToken, async (req, res, next) => {
       filter.isService = true;
     } else if (status && status !== "all") {
       filter.status = status;
-      filter.isService = false; 
+      filter.isService = false;
     }
 
     if (category && category !== "all") filter.category = category;
@@ -1894,6 +1888,137 @@ app.post("/create-checkout-session", authenticateToken, async (req, res) => {
   }
 });
 
+// Get user's projects
+app.get("/my-projects", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    console.log("Fetching projects for user:", userId); 
+
+    const projects = await Project.find({
+      $or: [{ requester: userId }, { provider: userId }]
+    })
+      .populate('requester', 'name email')
+      .populate('provider', 'name email')
+      .populate('listing', 'title skillOffered skillWanted')
+      .sort({ updatedAt: -1 });
+
+    console.log("Found projects:", projects.length); // Debug log
+    res.json({ success: true, projects });
+  } catch (error) {
+    console.error("Error fetching projects:", error); // This will show the real error
+    res.status(500).json({ error: "Failed to fetch projects" });
+  }
+});
+
+// Update project status
+app.put("/projects/:id/status", authenticateToken, async (req, res) => {
+  try {
+    const { status, progress, note } = req.body;
+    const userId = req.user.userId;
+
+    const project = await Project.findById(req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+
+    // Check if user is part of this project
+    if (project.requester.toString() !== userId && project.provider.toString() !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Update status and progress
+    if (status) project.status = status;
+    if (progress !== undefined) project.progress = progress;
+
+    // Add note if provided
+    if (note) {
+      project.notes.push({
+        content: note,
+        author: userId
+      });
+    }
+
+    await project.save();
+    await project.populate(['requester', 'provider', 'listing']);
+
+    res.json({ success: true, project });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update project" });
+  }
+});
+
+// Create project from accepted request
+app.post("/projects/from-request", authenticateToken, async (req, res) => {
+  try {
+    const { requestId } = req.body;
+    const userId = req.user.userId;
+    console.log("Creating project from request:", requestId, "for user:", userId); // Debug log
+
+    const request = await Request.findById(requestId)
+      .populate('sender')
+      .populate('recipient')
+      .populate('listing');
+
+    if (!request) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+    
+    console.log("Found request:", request.status); // Debug log
+
+    if (request.status !== 'accepted') {
+      return res.status(400).json({ error: "Request must be accepted first" });
+    }
+
+    // Check if user is involved in this request
+    if (request.sender._id.toString() !== userId && request.recipient._id.toString() !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    
+    }
+
+    // Check if project already exists for this request
+    const existingProject = await Project.findOne({
+      listing: request.listing._id,
+      requester: request.sender._id,
+      provider: request.recipient._id
+    });
+    
+    if (existingProject) {
+      console.log("Project already exists:", existingProject._id); // Debug log
+      await existingProject.populate(['requester', 'provider', 'listing']);
+      return res.json({ 
+        success: true, 
+        project: existingProject, 
+        message: "Project already exists" 
+      });
+    }
+
+    // Create simple project
+    const project = new Project({
+      title: `${request.listing.title} - Collaboration`,
+      listing: request.listing._id,
+      requester: request.sender._id,
+      provider: request.recipient._id,
+      skills: {
+        offered: request.listing.skillOffered,
+        wanted: request.listing.skillWanted
+      },
+      status: "started",
+      progress: 0,
+      notes: [{
+        content: "Project created from accepted collaboration request",
+        author: userId
+      }]
+    });
+
+    await project.save();
+    await project.populate(['requester', 'provider', 'listing']);
+
+    console.log("Created new project:", project._id); // Debug log
+    res.json({ success: true, project });
+  } catch (error) {
+    console.error("Error creating project:", error); // This will show the real error
+    res.status(500).json({ error: "Failed to create project" });
+  }
+});
+
 // Geocoding Service----------------------------------------------------------------------------------
 
 
@@ -1908,7 +2033,7 @@ app.post("/geocode", authenticateToken, async (req, res) => {
   try {
     const { address } = req.body;
     const geoData = await geocoder.geocode(address);
-    
+
     if (geoData.length > 0) {
       res.json({
         success: true,
@@ -1929,25 +2054,25 @@ app.get("/listings/nearby", async (req, res) => {
   try {
     const { lat, lng, radius = 50, limit = 20 } = req.query;
     console.log(`🗺️ Searching nearby listings: lat=${lat}, lng=${lng}, radius=${radius}km`);
-    
+
     // Build filter for active listings
     const filter = { isActive: true };
-    
+
     // If coordinates provided, add geospatial query (when implemented)
     if (lat && lng) {
       // For now, just return all listings
       // TODO: Implement actual geospatial query when listing coordinates are available
       console.log(`🗺️ Location-based search requested for [${lat}, ${lng}] within ${radius}km`);
     }
-    
+
     const listings = await Listing.find(filter)
       .populate("author", "name email rating profileImage")
       .sort({ createdAt: -1 })
       .limit(parseInt(limit));
-    
+
     console.log(`✅ Found ${listings.length} listings`);
     res.json({ success: true, listings });
-    
+
   } catch (error) {
     console.error('❌ Error fetching nearby listings:', error);
     res.status(500).json({ error: "Failed to fetch nearby listings: " + error.message });
@@ -1958,7 +2083,7 @@ app.get("/listings/nearby", async (req, res) => {
 app.put("/profile/location", authenticateToken, async (req, res) => {
   try {
     const { address, coordinates, isLocationPublic } = req.body;
-    
+
     const updateData = {
       "location.address": address,
       "location.coordinates.coordinates": coordinates,
@@ -1984,59 +2109,70 @@ app.post('/requests', authenticateToken, async (req, res, next) => {
     const { recipientId, listingId, message, requestType = 'collaboration' } = req.body;
     const senderId = req.user.userId;
 
-    // --- validation ---
+    // Validation
     if (!recipientId || !listingId) {
       return res.status(400).json({ error: 'Recipient and listing are required' });
     }
+
     if (senderId === recipientId) {
       return res.status(400).json({ error: 'Cannot send request to yourself' });
     }
 
-    // --- existence checks ---
+    // Check if recipient and listing exist
     const [recipient, listing] = await Promise.all([
       User.findById(recipientId),
-      Listing.findById(listingId),
+      Listing.findById(listingId)
     ]);
-    if (!recipient) return res.status(404).json({ error: 'Recipient not found' });
-    if (!listing)   return res.status(404).json({ error: 'Listing not found' });
 
-    // --- prevent duplicates ---
-    const existing = await Request.findOne({
+    if (!recipient) {
+      return res.status(404).json({ error: 'Recipient not found' });
+    }
+
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    // Check for existing pending request
+    const existingRequest = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
       listing: listingId,
-      status: 'pending',
+      status: 'pending'
     });
-    if (existing) {
+
+    if (existingRequest) {
       return res.status(409).json({ error: 'Request already sent and pending' });
     }
 
-    // --- create & respond ---
+    // Create the request
     const request = new Request({
       sender: senderId,
       recipient: recipientId,
       listing: listingId,
       message: message?.trim(),
-      requestType,
+      requestType
     });
+
     await request.save();
+
+    // Populate for response
     await request.populate([
-      { path: 'sender',    select: 'name email rating' },
+      { path: 'sender', select: 'name email rating' },
       { path: 'recipient', select: 'name email' },
-      { path: 'listing',   select: 'title skillOffered skillWanted' },
+      { path: 'listing', select: 'title skillOffered skillWanted' }
     ]);
 
-    return res.status(201).json({
+    res.status(201).json({
       success: true,
       message: 'Request sent successfully',
-      request,
+      request
     });
 
-  } catch (err) {
-    if (err.code === 11000) {
+  } catch (error) {
+    if (error.code === 11000) {
       return res.status(409).json({ error: 'Request already exists' });
     }
-    next(err);
+    next(error);
   }
 });
 
@@ -2255,178 +2391,227 @@ app.get('/requests/can-send/:recipientId/:listingId', authenticateToken, async (
     const senderId = req.user.userId;
 
     if (senderId === recipientId) {
-      return res.json({ canSend: false, reason: 'Cannot send request to yourself' });
+      return res.json({
+        success: true,
+        canSend: false,
+        reason: 'Cannot send request to yourself'
+      });
     }
 
-    const existingReq = await Request.findOne({
+    // Check for existing requests
+    const existingRequest = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
       listing: listingId,
-      status: { $in: ['pending', 'accepted'] },
-    });
-    const existingConv = await Conversation.findOne({
-      participants: { $all: [senderId, recipientId], $size: 2 },
-      listing: listingId,
+      status: { $in: ['pending', 'accepted'] }
     });
 
-    if (existingConv) {
-      return res.json({ canSend: false, reason: 'Conversation already exists' });
-    }
-    if (existingReq) {
-      const reason = existingReq.status === 'pending'
+    // Check for existing conversation
+    const existingConversation = await Conversation.findOne({
+      participants: { $all: [senderId, recipientId], $size: 2 },
+      listing: listingId
+    });
+
+    let canSend = true;
+    let reason = '';
+
+    if (existingConversation) {
+      canSend = false;
+      reason = 'Conversation already exists';
+    } else if (existingRequest) {
+      canSend = false;
+      reason = existingRequest.status === 'pending'
         ? 'Request already sent and pending'
         : 'Request already accepted';
-      return res.json({ canSend: false, reason });
     }
 
-    return res.json({ canSend: true });
+    res.json({
+      success: true,
+      canSend,
+      reason,
+      existingRequest: existingRequest ? {
+        id: existingRequest._id,
+        status: existingRequest.status,
+        createdAt: existingRequest.createdAt
+      } : null
+    });
 
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
   }
 });
 
-// Get user's projects
-app.get("/my-projects", authenticateToken, async (req, res) => {
+// Auto-matching routes
+app.get("/matches/find/:listingId", authenticateToken, async (req, res) => {
   try {
+    const { listingId } = req.params;
     const userId = req.user.userId;
-    console.log("Fetching projects for user:", userId); 
+    
+    const currentListing = await Listing.findById(listingId).populate('author');
+    if (!currentListing) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+    
+    // Only the listing author can find matches
+    if (currentListing.author._id.toString() !== userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    // Find potential matches
+    const matches = await findMatches(currentListing, userId);
+    
+    res.json({ 
+      success: true, 
+      matches,
+      listingTitle: currentListing.title,
+      lookingFor: currentListing.skillWanted
+    });
+    
+  } catch (error) {
+    console.error("Error finding matches:", error);
+    res.status(500).json({ error: "Failed to find matches" });
+  }
+});
 
-    const projects = await Project.find({
-      $or: [{ requester: userId }, { provider: userId }]
+// Send auto-match request
+app.post("/matches/connect", authenticateToken, async (req, res) => {
+  try {
+    const { matchedListingId, originalListingId, message } = req.body;
+    const senderId = req.user.userId;
+    
+    const matchedListing = await Listing.findById(matchedListingId).populate('author');
+    const originalListing = await Listing.findById(originalListingId);
+    
+    if (!matchedListing || !originalListing) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+    
+    const recipientId = matchedListing.author._id;
+    
+    // Check if request already exists
+    const existingRequest = await Request.findOne({
+      sender: senderId,
+      recipient: recipientId,
+      listing: matchedListingId,
+      status: { $in: ['pending', 'accepted'] }
+    });
+    
+    if (existingRequest) {
+      return res.status(400).json({ error: "Request already sent to this user" });
+    }
+    
+    // Create auto-match request
+    const request = new Request({
+      sender: senderId,
+      recipient: recipientId,
+      listing: matchedListingId,
+      message: message || `Hi! I found your listing through auto-match. I'm looking for ${originalListing.skillWanted} and can offer ${originalListing.skillOffered}. Let's collaborate!`,
+      requestType: 'collaboration'
+    });
+    
+    await request.save();
+    await request.populate(['sender', 'recipient', 'listing']);
+    
+    res.json({
+      success: true,
+      message: "Match request sent successfully!",
+      request
+    });
+    
+  } catch (error) {
+    console.error("Error sending match request:", error);
+    res.status(500).json({ error: "Failed to send match request" });
+  }
+});
+
+// Helper function to find matches
+async function findMatches(currentListing, userId) {
+  try {
+    // Find listings where:
+    // 1. The skillOffered matches what current listing wants (skillWanted)
+    // 2. The skillWanted matches what current listing offers (skillOffered) 
+    // 3. Not the same user
+    // 4. Active listings only
+    // 5. Not completed
+    
+    const potentialMatches = await Listing.find({
+      $and: [
+        { author: { $ne: userId } }, // Not the same user
+        { isActive: true }, // Active listings
+        { isCompleted: { $ne: true } }, // Not completed
+        {
+          $or: [
+            {
+              // Perfect match: They offer what I want AND want what I offer
+              skillOffered: { $regex: currentListing.skillWanted, $options: 'i' },
+              skillWanted: { $regex: currentListing.skillOffered, $options: 'i' }
+            },
+            {
+              // Partial match: They offer what I want
+              skillOffered: { $regex: currentListing.skillWanted, $options: 'i' }
+            },
+            {
+              // Partial match: They want what I offer  
+              skillWanted: { $regex: currentListing.skillOffered, $options: 'i' }
+            }
+          ]
+        }
+      ]
     })
-      .populate('requester', 'name email')
-      .populate('provider', 'name email')
-      .populate('listing', 'title skillOffered skillWanted')
-      .sort({ updatedAt: -1 });
-
-    console.log("Found projects:", projects.length); // Debug log
-    res.json({ success: true, projects });
-  } catch (error) {
-    console.error("Error fetching projects:", error); // This will show the real error
-    res.status(500).json({ error: "Failed to fetch projects" });
-  }
-});
-
-// Update project status
-app.put("/projects/:id/status", authenticateToken, async (req, res) => {
-  try {
-    const { status, progress, note } = req.body;
-    const userId = req.user.userId;
-
-    const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ error: "Project not found" });
-
-    // Check if user is part of this project
-    if (project.requester.toString() !== userId && project.provider.toString() !== userId) {
-      return res.status(403).json({ error: "Not authorized" });
-    }
-
-    // Update status and progress
-    if (status) project.status = status;
-    if (progress !== undefined) project.progress = progress;
-
-    // Add note if provided
-    if (note) {
-      project.notes.push({
-        content: note,
-        author: userId
-      });
-    }
-
-    await project.save();
-    await project.populate(['requester', 'provider', 'listing']);
-
-    res.json({ success: true, project });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to update project" });
-  }
-});
-
-// Create project from accepted request
-app.post("/projects/from-request", authenticateToken, async (req, res) => {
-  try {
-    const { requestId } = req.body;
-    const userId = req.user.userId;
-    console.log("Creating project from request:", requestId, "for user:", userId); // Debug log
-
-    const request = await Request.findById(requestId)
-      .populate('sender')
-      .populate('recipient')
-      .populate('listing');
-
-    if (!request) {
-      return res.status(404).json({ error: "Request not found" });
-    }
+    .populate('author', 'name email rating profileImage')
+    .sort({ createdAt: -1 })
+    .limit(10);
     
-    console.log("Found request:", request.status); // Debug log
-
-    if (request.status !== 'accepted') {
-      return res.status(400).json({ error: "Request must be accepted first" });
-    }
-
-    // Check if user is involved in this request
-    if (request.sender._id.toString() !== userId && request.recipient._id.toString() !== userId) {
-      return res.status(403).json({ error: "Not authorized" });
-    
-    }
-
-    // Check if project already exists for this request
-    const existingProject = await Project.findOne({
-      listing: request.listing._id,
-      requester: request.sender._id,
-      provider: request.recipient._id
+    // Calculate match scores and add match type
+    const matchesWithScores = potentialMatches.map(match => {
+      let matchScore = 0;
+      let matchType = '';
+      let matchReason = '';
+      
+      const offersWhatIWant = match.skillOffered.toLowerCase().includes(currentListing.skillWanted.toLowerCase());
+      const wantsWhatIOffer = match.skillWanted.toLowerCase().includes(currentListing.skillOffered.toLowerCase());
+      
+      if (offersWhatIWant && wantsWhatIOffer) {
+        matchScore = 100; // Perfect match
+        matchType = 'perfect';
+        matchReason = `Perfect match! They offer ${match.skillOffered} (you want ${currentListing.skillWanted}) and want ${match.skillWanted} (you offer ${currentListing.skillOffered})`;
+      } else if (offersWhatIWant) {
+        matchScore = 75; // Good match
+        matchType = 'good';
+        matchReason = `Good match! They offer ${match.skillOffered} which matches what you're looking for: ${currentListing.skillWanted}`;
+      } else if (wantsWhatIOffer) {
+        matchScore = 60; // Potential match
+        matchType = 'potential';
+        matchReason = `Potential match! They want ${match.skillWanted} which matches what you offer: ${currentListing.skillOffered}`;
+      } else {
+        matchScore = 30; // Weak match
+        matchType = 'weak';
+        matchReason = 'Similar skills detected';
+      }
+      
+      // Boost score for highly rated users
+      if (match.author.rating?.average >= 4.5) {
+        matchScore += 10;
+      }
+      
+      return {
+        ...match.toObject(),
+        matchScore,
+        matchType,
+        matchReason
+      };
     });
     
-    if (existingProject) {
-      console.log("Project already exists:", existingProject._id); // Debug log
-      await existingProject.populate(['requester', 'provider', 'listing']);
-      return res.json({ 
-        success: true, 
-        project: existingProject, 
-        message: "Project already exists" 
-      });
-    }
-
-    // Create simple project
-    const project = new Project({
-      title: `${request.listing.title} - Collaboration`,
-      listing: request.listing._id,
-      requester: request.sender._id,
-      provider: request.recipient._id,
-      skills: {
-        offered: request.listing.skillOffered,
-        wanted: request.listing.skillWanted
-      },
-      status: "started",
-      progress: 0,
-      notes: [{
-        content: "Project created from accepted collaboration request",
-        author: userId
-      }]
-    });
-
-    await project.save();
-    await project.populate(['requester', 'provider', 'listing']);
-
-    console.log("Created new project:", project._id); // Debug log
-    res.json({ success: true, project });
+    // Sort by match score (highest first) and return top 5
+    return matchesWithScores
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 5);
+    
   } catch (error) {
-    console.error("Error creating project:", error); // This will show the real error
-    res.status(500).json({ error: "Failed to create project" });
+    console.error("Error in findMatches:", error);
+    return [];
   }
-});
-
-app.post("/create-checkout-session", authenticateToken, async (req, res) => {
-  const { serviceId } = req.body;
-  const listing = await Listing.findById(serviceId);
-  if (!listing || !listing.isService) {
-    return res.status(404).json({ error: "Service not found" });
-  }
-  const session = await stripe.checkout.sessions.create({ /* … */ });
-  res.json({ url: session.url });
-});
-
+}
 
 
 // Apply error handling middleware
