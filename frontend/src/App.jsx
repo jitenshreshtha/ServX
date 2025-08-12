@@ -27,11 +27,17 @@ import SupportCenterPage from "../pages/SupportCenterPage";
 import PaymentSuccessPage from "../pages/PaymentSuccessPage";
 import PaymentcancelledPage from "../pages/PaymentcancelledPage";
 import Enable2FA from '../pages/Enable2FA';
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import SavedSearchEvents from "../components/SavedSearchEvents";
+
 
 function App() {
   return (
     <AuthProvider>
       <Router>
+        <ToastContainer position="top-right" autoClose={3000} />
+        <SavedSearchEvents />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />

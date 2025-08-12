@@ -65,6 +65,11 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+// index.js (server entry)
+const savedSearchRoutes = require("./routes/savedSearchRoutes");
+app.use("/saved-searches", savedSearchRoutes);
+
+
 
 // Error handling middleware
 const errorHandler = (err, req, res, next) => {

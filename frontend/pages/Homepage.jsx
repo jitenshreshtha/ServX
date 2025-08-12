@@ -7,6 +7,7 @@ import StarRating from "../components/StarRating";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../src/context/Authcontext";
 import "bootstrap/dist/css/bootstrap.min.css";
+import SaveSearchButton from "../components/SaveSearchButton";
 
 function Homepage() {
   const [listings, setListings] = useState([]);
@@ -116,7 +117,6 @@ function Homepage() {
       return;
     }
 
-    // Check if request can be sent
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
@@ -137,7 +137,6 @@ function Homepage() {
         return;
       }
 
-      // Open request modal
       setSelectedListing(listing);
       setShowRequestModal(true);
     } catch (error) {
@@ -154,9 +153,6 @@ function Homepage() {
 
     try {
       const token = localStorage.getItem("token");
-      console.log("🟡 Hiring service:", service);
-      console.log("🟡 Sending request with serviceId:", service._id);
-
       const response = await fetch(
         "http://localhost:3000/create-checkout-session",
         {
@@ -169,10 +165,7 @@ function Homepage() {
         }
       );
 
-      console.log("🟡 Raw response:", response);
-
       const data = await response.json();
-      console.log("🟢 Stripe session response:", data);
 
       if (data.url) {
         window.location.href = data.url;
@@ -303,17 +296,36 @@ function Homepage() {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="d-flex gap-2">
-              <button className="btn btn-primary" onClick={handleSearch}>
-                <i className="bi bi-search me-2"></i>Search
-              </button>
-              <button
-                className="btn btn-outline-secondary"
-                onClick={clearFilters}
-              >
-                <i className="bi bi-x-circle me-2"></i>Clear Filters
-              </button>
+            {/* Action Buttons + Save Search */}
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
+              <div className="d-flex gap-2">
+                <button className="btn btn-primary" onClick={handleSearch}>
+                  <i className="bi bi-search me-2"></i>Search
+                </button>
+                <button
+                  className="btn btn-outline-secondary"
+                  onClick={clearFilters}
+                >
+                  <i className="bi bi-x-circle me-2"></i>Clear Filters
+                </button>
+              </div>
+
+              {loggedIn && (
+                <SaveSearchButton
+                  currentFilters={{
+                    label: filters.search
+                      ? `“${filters.search}” ${filters.category ? `in ${filters.category}` : ""}`
+                      : (filters.category || "All categories"),
+                    category: filters.category || "",
+                    text: filters.search || "",
+                    // expose these in UI later if needed:
+                    isService: null,
+                    minBudget: null,
+                    maxBudget: null,
+                    tags: [],
+                  }}
+                />
+              )}
             </div>
           </div>
         </div>
