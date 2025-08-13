@@ -13,15 +13,6 @@ function textMatch(listing, text) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-    listing.title,
-    listing.description,
-    listing.skillOffered,
-    listing.skillWanted,
-    ...(listing.tags || []),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
   return pool.includes(t);
 }
 
@@ -34,7 +25,6 @@ function tagMatch(listing, tags) {
 function budgetMatch(listing, min, max) {
   if (min == null && max == null) return true;
   const budget = listing.salaryMin ?? listing.salaryMax ?? null;
-  const budget = listing.salaryMin ?? listing.salaryMax ?? null;
   if (budget == null) return false;
   if (min != null && budget < min) return false;
   if (max != null && budget > max) return false;
@@ -46,21 +36,11 @@ function geoMatch(listing, point, radiusKm) {
   const coords =
     listing?.location?.coordinates?.coordinates ||
     listing?.location?.coordinates;
-  const coords =
-    listing?.location?.coordinates?.coordinates ||
-    listing?.location?.coordinates;
   if (!coords || coords.length !== 2) return false;
 
   const [lng1, lat1] = coords;
   const [lng2, lat2] = point.coordinates;
   const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const a =
