@@ -792,6 +792,7 @@ app.post("/listings", authenticateToken, async (req, res, next) => {
       location,
       tags: tags || [],
       author: req.user.userId,
+      isActive:true
     });
 
     await listing.save();
@@ -863,7 +864,7 @@ app.get("/listings", async (req, res, next) => {
     const itemsPerPage = Math.min(48, Math.max(1, parseInt(limit)));
     const skip = (currentPage - 1) * itemsPerPage;
 
-    const filter = { isActive: true };
+    const filter = { status: 'active' };
 
     if (category && category.trim()) filter.category = category;
     if (skillOffered && skillOffered.trim()) filter.skillOffered = new RegExp(skillOffered.trim(), 'i');

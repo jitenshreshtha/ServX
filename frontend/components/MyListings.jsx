@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// src/components/MyListings.jsx
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Pagination from './Pagination';
 import AutoMatch from './AutoMatch';
@@ -22,6 +23,7 @@ function MyListings() {
 
   useEffect(() => {
     fetchMyListings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, filter, searchTerm, sortBy, sortOrder]);
 
   const fetchMyListings = async () => {
@@ -55,7 +57,7 @@ function MyListings() {
         queryParams.append('search', searchTerm.trim());
       }
 
-      const url = `http://localhost:3000/my-listings?${queryParams}`;
+      const url = `http://localhost:3000/my-listings?${queryParams.toString()}`;
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -78,8 +80,8 @@ function MyListings() {
 
       const data = await response.json();
       if (data && data.listings !== undefined) {
-        setListings(data.listings || []);
-        setPagination(data.pagination);
+        setListings(Array.isArray(data.listings) ? data.listings : []);
+        setPagination(data.pagination || null);
         setTotalPages(data.pagination?.pages || 1);
         setDebugInfo(data.debug || null);
       } else {
@@ -179,7 +181,7 @@ function MyListings() {
       services: 0
     };
 
-    // If we have pagination data with counts, use that
+    // Use server-provided counts if available
     if (pagination?.counts) {
       return {
         ...counts,
@@ -187,7 +189,7 @@ function MyListings() {
       };
     }
 
-    // Fallback to client-side counting if pagination.counts isn't available
+    // Fallback: count from the currently loaded page
     listings.forEach(listing => {
       if (listing.isService) {
         counts.services++;
@@ -200,6 +202,16 @@ function MyListings() {
   };
 
   const counts = getFilterCounts();
+
+  // ---------- Client-side guard for Services tab ----------
+  const displayedListings = useMemo(() => {
+    if (filter === 'services') {
+      // Double-check on the client so only true services render
+      return (listings || []).filter(l => l?.isService === true);
+    }
+    return listings || [];
+  }, [listings, filter]);
+  // --------------------------------------------------------
 
   if (loading && currentPage === 1) {
     return (
@@ -237,7 +249,7 @@ function MyListings() {
           <small>
             <strong>User ID:</strong> {debugInfo.userId} (Type: {debugInfo.userIdType})<br />
             <strong>Total User Listings in DB:</strong> {debugInfo.totalUserListings}<br />
-            <strong>Current Filter Results:</strong> {listings.length}<br />
+            <strong>Current Filter Results:</strong> {displayedListings.length}<br />
             <strong>Filter Used:</strong> {JSON.stringify(debugInfo.filterUsed)}
           </small>
           <button
@@ -357,7 +369,7 @@ function MyListings() {
             <span className="visually-hidden">Loading...</span>
           </div>
         </div>
-      ) : listings.length === 0 ? (
+      ) : displayedListings.length === 0 ? (
         <div className="text-center py-5">
           <i className="bi bi-list-ul display-1 text-muted"></i>
           <h4 className="mt-3">
@@ -378,7 +390,7 @@ function MyListings() {
       ) : (
         <>
           <div className="row">
-            {listings.map((listing) => (
+            {displayedListings.map((listing) => (
               <div className="col-lg-6 mb-4" key={listing._id}>
                 <div className="card h-100 shadow-sm">
                   <div className="card-body">
@@ -391,7 +403,10 @@ function MyListings() {
 
                     {listing.isService && (
                       <div className="mb-2">
-                        <strong>Pay Range:</strong> ${listing.salaryMin} - ${listing.salaryMax}
+                        <strong>Pay Range:</strong>{' '}
+                        {typeof listing.salaryMin === 'number' && typeof listing.salaryMax === 'number'
+                          ? `$${listing.salaryMin} - $${listing.salaryMax}`
+                          : '—'}
                       </div>
                     )}
 
