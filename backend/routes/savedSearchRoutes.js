@@ -1,3 +1,4 @@
+// routes/savedSearchRoutes.js
 const router = require("express").Router();
 const jwt = require("jsonwebtoken");
 const SavedSearch = require("../models/SavedSearch");
@@ -55,13 +56,27 @@ router.delete("/:id", requireAuth, async (req, res) => {
 });
 
 // ----- Preview current matches -----
+// Make preview use the same (case-insensitive) logic as the post-save matcher.
 router.post("/test/:id", requireAuth, async (req, res) => {
   const user = req.user.userId;
   const s = await SavedSearch.findOne({ _id: req.params.id, user });
   if (!s) return res.status(404).json({ error: "Not found" });
 
-  const q = { status: s.status || "active" };
-  if (s.category) q.category = s.category;
+  const norm = (v) => (v == null ? "" : String(v).trim());
+  const escape = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const q = {};
+
+  // status: default to "active", match case-insensitively
+  const status = norm(s.status) || "active";
+  q.status = { $regex: `^${escape(status)}$`, $options: "i" };
+
+  // category: case-insensitive exact match when provided
+  const cat = norm(s.category);
+  if (cat) {
+    q.category = { $regex: `^${escape(cat)}$`, $options: "i" };
+  }
+
   if (typeof s.isService === "boolean") q.isService = s.isService;
   if (s.tags?.length) q.tags = { $in: s.tags };
   if (s.text) q.$text = { $search: s.text };
@@ -70,7 +85,7 @@ router.post("/test/:id", requireAuth, async (req, res) => {
   res.json({ results });
 });
 
-// ----- SSE stream (token via query; ZERO chat changes) -----
+// ----- SSE stream (token via query) -----
 router.get("/stream", (req, res) => {
   try {
     const token = req.query.token; // EventSource can't send Authorization header
